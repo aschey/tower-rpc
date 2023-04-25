@@ -1,16 +1,15 @@
-use std::io;
-
 use futures::Stream;
 use parity_tokio_ipc::Endpoint;
+use std::io;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::ipc::get_socket_address;
+use super::get_socket_address;
 
-pub struct IpcTransport {
+pub struct Transport {
     endpoint: Endpoint,
 }
 
-impl IpcTransport {
+impl Transport {
     pub fn new(app_id: impl AsRef<str>) -> Self {
         let endpoint = Endpoint::new(get_socket_address(app_id.as_ref(), ""));
         Self { endpoint }

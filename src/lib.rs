@@ -18,11 +18,11 @@ mod client;
 pub use client::*;
 mod tagged;
 pub use tagged::*;
-pub mod ipc;
 pub mod transport;
 
 pub fn serde_codec<Req, Res>(
     incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    codec: Codec,
 ) -> CodecStream<Req, Res, io::Error, io::Error>
 where
     Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
@@ -30,7 +30,7 @@ where
 {
     let stream = tokio_util::codec::Framed::new(incoming, LengthDelimitedCodec::new());
 
-    let stream = tokio_serde::Framed::new(stream, CodecWrapper::new(Codec::Bincode));
+    let stream = tokio_serde::Framed::new(stream, CodecWrapper::new(codec));
     Box::new(stream)
 }
 

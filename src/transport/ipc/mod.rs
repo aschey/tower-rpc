@@ -1,5 +1,7 @@
-mod ipc_client_stream;
-pub use ipc_client_stream::*;
+mod client_stream;
+pub use client_stream::*;
+mod transport;
+pub use transport::*;
 
 pub fn get_socket_address(id: &str, suffix: &str) -> String {
     let suffix_full = if suffix.is_empty() {

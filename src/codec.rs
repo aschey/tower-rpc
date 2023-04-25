@@ -1,4 +1,4 @@
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum Codec {
     #[cfg(feature = "bincode")]
     Bincode,

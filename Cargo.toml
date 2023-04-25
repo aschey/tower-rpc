@@ -3,19 +3,17 @@ edition = "2021"
 name = "tower-rpc"
 version = "0.1.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-async-trait = "0.1.68"
+async-trait = "0.1"
 background-service = {git = "https://github.com/aschey/background-service-rs", rev = "d76583c5b931ebe6cd52fb077bc513991d24608d"}
 bytes = "1"
 futures = "0.3"
 futures-cancel = {git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d"}
-parity-tokio-ipc = "0.9.0"
+parity-tokio-ipc = {version = "0.9", optional = true}
 serde = "1"
-slab = "0.4.8"
-thiserror = "1.0.40"
-tokio = "1.27.0"
+slab = "0.4"
+thiserror = "1"
+tokio = "1"
 tokio-serde = {version = "0.8"}
 tokio-stream = {version = "0.1", features = ["sync"]}
 tokio-tower = "0.7.0-rc4"
@@ -28,6 +26,11 @@ tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros", "time"]}
 [features]
 bincode = ["tokio-serde/bincode"]
 cbor = ["tokio-serde/cbor"]
-default = ["bincode"]
+default = ["bincode", "ipc"]
+ipc = ["parity-tokio-ipc"]
 json = ["tokio-serde/json"]
 messagepack = ["tokio-serde/messagepack"]
+
+[[example]]
+name = "ipc"
+required-features = ["ipc"]

@@ -9,13 +9,13 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::get_socket_address;
 
-pub struct IpcClientStream {
+pub struct ClientStream {
     waker: Arc<Mutex<Option<Waker>>>,
     connection: Arc<Mutex<Option<Connection>>>,
     addr: String,
 }
 
-impl IpcClientStream {
+impl ClientStream {
     pub fn new(app_id: impl AsRef<str>) -> Self {
         let addr = get_socket_address(app_id.as_ref(), "");
         let waker: Arc<Mutex<Option<Waker>>> = Arc::new(Mutex::new(None));
@@ -54,7 +54,7 @@ impl IpcClientStream {
     }
 }
 
-impl AsyncRead for IpcClientStream {
+impl AsyncRead for ClientStream {
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -75,7 +75,7 @@ impl AsyncRead for IpcClientStream {
     }
 }
 
-impl AsyncWrite for IpcClientStream {
+impl AsyncWrite for ClientStream {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::sync::CancellationToken;
 
+use crate::Codec;
+
 pub trait StreamSink<SinkItem>: Stream + Sink<SinkItem> + Unpin + Send {}
 
 impl<T, SinkItem> StreamSink<SinkItem> for T where T: Stream + Sink<SinkItem> + Unpin + Send {}
@@ -83,9 +85,18 @@ pub trait CodecBuilder: Send {
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr>;
 }
 
-#[derive(Default)]
 pub struct SerdeCodec<Req, Res> {
     _phantom: PhantomData<(Req, Res)>,
+    codec: Codec,
+}
+
+impl<Req, Res> SerdeCodec<Req, Res> {
+    pub fn new(codec: Codec) -> Self {
+        Self {
+            codec,
+            _phantom: Default::default(),
+        }
+    }
 }
 
 impl<Req, Res> CodecBuilder for SerdeCodec<Req, Res>
@@ -102,7 +113,7 @@ where
         &self,
         incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        crate::serde_codec(incoming)
+        crate::serde_codec(incoming, self.codec)
     }
 }
 
