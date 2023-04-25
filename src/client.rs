@@ -51,7 +51,6 @@ where
         self,
     ) -> impl tower::Service<Tagged<Res>, Error = ClientError, Response = Tagged<Req>> {
         let transport = self.transport_builder.build_codec(self.stream);
-
         multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default())).build()
     }
 }
