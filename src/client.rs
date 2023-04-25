@@ -7,10 +7,14 @@ use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
 };
+use tower::{
+    layer::util::{Identity, Stack},
+    ServiceBuilder,
+};
 
 use crate::{CodecBuilder, Tagged};
 
-pub struct Client<T, S, Req, Res>
+pub struct Client<T, S, Req, Res, L = Identity>
 where
     T: CodecBuilder<Req = Req, Res = Res> + 'static,
     S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -19,6 +23,7 @@ where
 {
     transport_builder: T,
     stream: S,
+    service_builder: ServiceBuilder<L>,
 }
 
 impl<T, S, Req, Res> Client<T, S, Req, Res>
@@ -32,11 +37,30 @@ where
         Self {
             stream,
             transport_builder,
+            service_builder: ServiceBuilder::default(),
         }
     }
+
     pub fn create_pipeline(self) -> impl tower::Service<Res, Error = ClientError, Response = Req> {
         let transport = self.transport_builder.build_codec(self.stream);
-        pipeline::Client::new(transport)
+        let client = pipeline::Client::new(transport);
+        self.service_builder.service(client)
+    }
+}
+
+impl<T, S, Req, Res, L> Client<T, S, Req, Res, L>
+where
+    T: CodecBuilder<Req = Req, Res = Res> + 'static,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
+    Req: Send + 'static,
+    Res: Send + 'static,
+{
+    pub fn layer<NewLayer>(self, layer: NewLayer) -> Client<T, S, Req, Res, Stack<NewLayer, L>> {
+        Client {
+            transport_builder: self.transport_builder,
+            stream: self.stream,
+            service_builder: self.service_builder.layer(layer),
+        }
     }
 }
 
@@ -51,7 +75,10 @@ where
         self,
     ) -> impl tower::Service<Tagged<Res>, Error = ClientError, Response = Tagged<Req>> {
         let transport = self.transport_builder.build_codec(self.stream);
-        multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default())).build()
+        let client =
+            multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default()))
+                .build();
+        self.service_builder.service(client)
     }
 }
 
