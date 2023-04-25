@@ -11,11 +11,11 @@ pub trait StreamSink<SinkItem>: Stream + Sink<SinkItem> + Unpin + Send {}
 
 impl<T, SinkItem> StreamSink<SinkItem> for T where T: Stream + Sink<SinkItem> + Unpin + Send {}
 
-pub type Transport<Req, Res, StreamErr, SinkErr> =
+pub type CodecStream<Req, Res, StreamErr, SinkErr> =
     Box<dyn StreamSink<Res, Item = Result<Req, StreamErr>, Error = SinkErr>>;
 
 #[async_trait]
-pub trait IpcRequestHandler: Send + Sync {
+pub trait RequestHandler: Send + Sync {
     type Req: Send + Sync;
     type Res: Send + Sync;
 
@@ -52,7 +52,7 @@ where
 }
 
 #[async_trait]
-impl<F, Fut, Req, Res> IpcRequestHandler for HandlerFn<F, Fut, Req, Res>
+impl<F, Fut, Req, Res> RequestHandler for HandlerFn<F, Fut, Req, Res>
 where
     Req: Send + Sync + Clone,
     Res: Send + Sync + Clone,
@@ -71,24 +71,24 @@ where
     }
 }
 
-pub trait TransportBuilder: Send {
+pub trait CodecBuilder: Send {
     type Req: Send;
     type Res: Send;
     type StreamErr: Error + Send + Sync + 'static;
     type SinkErr: Error + Send + Sync + 'static;
 
-    fn build_transport(
+    fn build_codec(
         &self,
         incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    ) -> Transport<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr>;
+    ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr>;
 }
 
 #[derive(Default)]
-pub struct CodecTransport<Req, Res> {
+pub struct SerdeCodec<Req, Res> {
     _phantom: PhantomData<(Req, Res)>,
 }
 
-impl<Req, Res> TransportBuilder for CodecTransport<Req, Res>
+impl<Req, Res> CodecBuilder for SerdeCodec<Req, Res>
 where
     Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
     Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
@@ -98,26 +98,26 @@ where
     type SinkErr = io::Error;
     type StreamErr = io::Error;
 
-    fn build_transport(
+    fn build_codec(
         &self,
         incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    ) -> Transport<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        crate::codec_transport(incoming)
+    ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
+        crate::serde_codec(incoming)
     }
 }
 
-pub struct LengthDelimitedTransport;
+pub struct LengthDelimitedCodec;
 
-impl TransportBuilder for LengthDelimitedTransport {
+impl CodecBuilder for LengthDelimitedCodec {
     type Req = BytesMut;
     type Res = Bytes;
     type SinkErr = io::Error;
     type StreamErr = io::Error;
 
-    fn build_transport(
+    fn build_codec(
         &self,
         incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    ) -> Transport<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        crate::length_delimited_transport(incoming)
+    ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
+        crate::length_delimited_codec(incoming)
     }
 }

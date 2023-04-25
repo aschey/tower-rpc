@@ -2,57 +2,57 @@ use std::{fmt::Debug, marker::PhantomData, pin::Pin};
 
 use futures::{Sink, TryStream};
 use slab::Slab;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
 };
 
-use crate::{get_socket_address, ipc_client_stream::IpcClientStream, Tagged, TransportBuilder};
+use crate::{CodecBuilder, Tagged};
 
-pub struct Client<T, Req, Res>
+pub struct Client<T, S, Req, Res>
 where
-    T: TransportBuilder<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res> + 'static,
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     Req: Send,
     Res: Send,
 {
     transport_builder: T,
-    app_id: String,
+    stream: S,
 }
 
-impl<T, Req, Res> Client<T, Req, Res>
+impl<T, S, Req, Res> Client<T, S, Req, Res>
 where
-    T: TransportBuilder<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res> + 'static,
+    S: AsyncRead + AsyncWrite + Send + Unpin,
     Req: Send + 'static,
     Res: Send + 'static,
 {
-    pub fn new(app_id: impl Into<String>, transport_builder: T) -> Self {
+    pub fn new(stream: S, transport_builder: T) -> Self {
         Self {
-            app_id: app_id.into(),
+            stream,
             transport_builder,
         }
     }
-    pub fn create_pipeline(&self) -> impl tower::Service<Res, Error = ClientError, Response = Req> {
-        let stream = IpcClientStream::new(get_socket_address(&self.app_id, ""));
-        let transport = self.transport_builder.build_transport(stream);
-        let client: pipeline::Client<_, ClientError, _> = pipeline::Client::new(transport);
-        client
+    pub fn create_pipeline(self) -> impl tower::Service<Res, Error = ClientError, Response = Req> {
+        let transport = self.transport_builder.build_codec(self.stream);
+        pipeline::Client::new(transport)
     }
 }
 
-impl<T, Req, Res> Client<T, Tagged<Req>, Tagged<Res>>
+impl<T, S, Req, Res> Client<T, S, Tagged<Req>, Tagged<Res>>
 where
-    T: TransportBuilder<Req = Tagged<Req>, Res = Tagged<Res>> + 'static,
+    T: CodecBuilder<Req = Tagged<Req>, Res = Tagged<Res>> + 'static,
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     Req: Unpin + Send + 'static,
     Res: Unpin + Send + 'static,
 {
-    pub fn create_multiplex(&self) -> impl tower::Service<Tagged<Res>> {
-        let stream = IpcClientStream::new(get_socket_address(&self.app_id, ""));
+    pub fn create_multiplex(
+        self,
+    ) -> impl tower::Service<Tagged<Res>, Error = ClientError, Response = Tagged<Req>> {
+        let transport = self.transport_builder.build_codec(self.stream);
 
-        let transport = self.transport_builder.build_transport(stream);
-        let client: multiplex::Client<_, ClientError, _> =
-            multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default()))
-                .build();
-        client
+        multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default())).build()
     }
 }
 

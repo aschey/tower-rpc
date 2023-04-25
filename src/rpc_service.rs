@@ -1,20 +1,21 @@
-use crate::ipc_request_handler::IpcRequestHandler;
 use futures::Future;
 use std::{io, pin::Pin, sync::Arc, task::Poll};
 use tokio_util::sync::CancellationToken;
 
+use crate::RequestHandler;
+
 #[derive(Default)]
-pub struct IpcService<H>
+pub struct RpcService<H>
 where
-    H: IpcRequestHandler + 'static,
+    H: RequestHandler + 'static,
 {
     handler: Arc<H>,
     cancellation_token: CancellationToken,
 }
 
-impl<H> IpcService<H>
+impl<H> RpcService<H>
 where
-    H: IpcRequestHandler + 'static,
+    H: RequestHandler + 'static,
 {
     pub fn new(handler: Arc<H>, cancellation_token: CancellationToken) -> Self {
         Self {
@@ -24,9 +25,9 @@ where
     }
 }
 
-impl<H> tower::Service<H::Req> for IpcService<H>
+impl<H> tower::Service<H::Req> for RpcService<H>
 where
-    H: IpcRequestHandler + 'static,
+    H: RequestHandler + 'static,
 {
     type Response = H::Res;
     type Error = io::Error;

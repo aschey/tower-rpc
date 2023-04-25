@@ -7,14 +7,17 @@ use std::{
 };
 use tokio::io::{AsyncRead, AsyncWrite};
 
-pub(crate) struct IpcClientStream {
+use super::get_socket_address;
+
+pub struct IpcClientStream {
     waker: Arc<Mutex<Option<Waker>>>,
     connection: Arc<Mutex<Option<Connection>>>,
     addr: String,
 }
 
 impl IpcClientStream {
-    pub(crate) fn new(addr: String) -> Self {
+    pub fn new(app_id: impl AsRef<str>) -> Self {
+        let addr = get_socket_address(app_id.as_ref(), "");
         let waker: Arc<Mutex<Option<Waker>>> = Arc::new(Mutex::new(None));
         let waker_ = waker.clone();
         let connection: Arc<Mutex<Option<Connection>>> = Arc::new(Mutex::new(None));

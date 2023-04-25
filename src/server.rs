@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
-use crate::{
-    get_socket_address, ipc_request_handler::IpcRequestHandler, ipc_service::IpcService,
-    ServerMode, TransportBuilder,
-};
+use crate::{rpc_service::RpcService, CodecBuilder, RequestHandler, ServerMode};
 use async_trait::async_trait;
 use background_service::{error::BoxedError, BackgroundService, ServiceContext};
+use futures::Stream;
 use futures_cancel::FutureExt;
-use parity_tokio_ipc::Endpoint;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_stream::StreamExt;
 use tokio_tower::{multiplex, pipeline};
 use tower::{
@@ -15,69 +13,75 @@ use tower::{
     ServiceBuilder,
 };
 
-pub struct Server<H, T, Req, Res, L = Identity>
+pub struct Server<H, T, S, I, E, Req, Res, L = Identity>
 where
-    H: IpcRequestHandler<Req = Req, Res = Res> + 'static,
-    T: TransportBuilder<Req = Req, Res = Res>,
+    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res>,
+    S: Stream<Item = Result<I, E>>,
+    I: AsyncRead + AsyncWrite,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
-    endpoint: Endpoint,
+    incoming: S,
     handler: Arc<H>,
-    transport_builder: T,
+    codec_builder: T,
     service_builder: ServiceBuilder<L>,
     server_mode: ServerMode,
 }
 
-impl<H, T, Req, Res> Server<H, T, Req, Res>
+impl<H, T, S, I, E, Req, Res> Server<H, T, S, I, E, Req, Res>
 where
-    H: IpcRequestHandler<Req = Req, Res = Res> + 'static,
-    T: TransportBuilder<Req = Req, Res = Res>,
+    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res>,
+    S: Stream<Item = Result<I, E>> + Send,
+    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    E: Send,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
-    pub fn new(
-        app_id: impl Into<String>,
-        handler: H,
-        transport_builder: T,
-        server_mode: ServerMode,
-    ) -> Self {
-        let app_id = app_id.into();
-        let endpoint = Endpoint::new(get_socket_address(&app_id, ""));
-
+    pub fn new(incoming: S, handler: H, codec_builder: T, server_mode: ServerMode) -> Self {
         Self {
-            endpoint,
+            incoming,
             handler: Arc::new(handler),
-            transport_builder,
+            codec_builder,
             server_mode,
             service_builder: ServiceBuilder::new(),
         }
     }
 }
 
-impl<H, T, Req, Res, L> Server<H, T, Req, Res, L>
+impl<H, T, S, I, E, Req, Res, L> Server<H, T, S, I, E, Req, Res, L>
 where
-    H: IpcRequestHandler<Req = Req, Res = Res> + 'static,
-    T: TransportBuilder<Req = Req, Res = Res>,
+    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res>,
+    S: Stream<Item = Result<I, E>> + Send,
+    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    E: Send,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
-    pub fn layer<NewLayer>(self, layer: NewLayer) -> Server<H, T, Req, Res, Stack<NewLayer, L>> {
+    pub fn layer<NewLayer>(
+        self,
+        layer: NewLayer,
+    ) -> Server<H, T, S, I, E, Req, Res, Stack<NewLayer, L>> {
         Server {
             service_builder: self.service_builder.layer(layer),
-            transport_builder: self.transport_builder,
+            codec_builder: self.codec_builder,
             handler: self.handler,
-            endpoint: self.endpoint,
+            incoming: self.incoming,
             server_mode: self.server_mode,
         }
     }
 }
 
 #[async_trait]
-impl<H, T, Req, Res> BackgroundService for Server<H, T, Req, Res>
+impl<H, T, S, I, E, Req, Res> BackgroundService for Server<H, T, S, I, E, Req, Res>
 where
-    H: IpcRequestHandler<Req = Req, Res = Res> + 'static,
-    T: TransportBuilder<Req = Req, Res = Res>,
+    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    T: CodecBuilder<Req = Req, Res = Res>,
+    S: Stream<Item = Result<I, E>> + Send,
+    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    E: Send,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
@@ -85,14 +89,14 @@ where
         "ipc_server"
     }
     async fn run(self, mut context: ServiceContext) -> Result<(), BoxedError> {
-        let incoming = self.endpoint.incoming().expect("failed to open socket");
+        let incoming = self.incoming;
         futures::pin_mut!(incoming);
         while let Ok(Some(Ok(stream))) = incoming
             .next()
             .cancel_on_shutdown(&context.cancellation_token())
             .await
         {
-            let transport = self.transport_builder.build_transport(stream);
+            let transport = self.codec_builder.build_codec(stream);
             let handler = self.handler.clone();
             let service_builder = self.service_builder.clone();
             let server_mode = self.server_mode;
@@ -100,7 +104,7 @@ where
                 .add_service((
                     "ipc_handler".to_owned(),
                     move |context: ServiceContext| async move {
-                        let service = service_builder.service(IpcService::new(
+                        let service = service_builder.service(RpcService::new(
                             handler.clone(),
                             context.cancellation_token(),
                         ));
