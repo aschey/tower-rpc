@@ -2,7 +2,6 @@ use std::{fmt::Debug, marker::PhantomData, pin::Pin};
 
 use futures::{Sink, TryStream};
 use slab::Slab;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
@@ -12,71 +11,59 @@ use tower::{
     ServiceBuilder,
 };
 
-use crate::{CodecBuilder, Tagged};
+use crate::Tagged;
 
-pub struct Client<T, S, Req, Res, L = Identity>
-where
-    T: CodecBuilder<Req = Req, Res = Res> + 'static,
-    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    Req: Send,
-    Res: Send,
-{
-    transport_builder: T,
+pub struct Client<S, Req, Res, L = Identity> {
     stream: S,
     service_builder: ServiceBuilder<L>,
+    _phantom: PhantomData<(Req, Res)>,
 }
 
-impl<T, S, Req, Res> Client<T, S, Req, Res>
+impl<S, Req, Res> Client<S, Req, Res>
 where
-    T: CodecBuilder<Req = Req, Res = Res> + 'static,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
+    S: TryStream<Ok = Res> + Sink<Req> + Send + 'static,
+    <S as futures::TryStream>::Error: Debug,
+    <S as futures::Sink<Req>>::Error: Debug,
     Req: Send + 'static,
     Res: Send + 'static,
 {
-    pub fn new(stream: S, transport_builder: T) -> Self {
+    pub fn new(stream: S) -> Self {
         Self {
             stream,
-            transport_builder,
             service_builder: ServiceBuilder::default(),
+            _phantom: Default::default(),
         }
     }
 
-    pub fn create_pipeline(self) -> impl tower::Service<Res, Error = ClientError, Response = Req> {
-        let transport = self.transport_builder.build_codec(self.stream);
-        let client = pipeline::Client::new(transport);
+    pub fn create_pipeline(self) -> impl tower::Service<Req, Error = ClientError, Response = Res> {
+        let client = pipeline::Client::new(self.stream);
         self.service_builder.service(client)
     }
 }
 
-impl<T, S, Req, Res, L> Client<T, S, Req, Res, L>
-where
-    T: CodecBuilder<Req = Req, Res = Res> + 'static,
-    S: AsyncRead + AsyncWrite + Send + Unpin,
-    Req: Send + 'static,
-    Res: Send + 'static,
-{
-    pub fn layer<NewLayer>(self, layer: NewLayer) -> Client<T, S, Req, Res, Stack<NewLayer, L>> {
+impl<S, Req, Res, L> Client<S, Req, Res, L> {
+    pub fn layer<NewLayer>(self, layer: NewLayer) -> Client<S, Req, Res, Stack<NewLayer, L>> {
         Client {
-            transport_builder: self.transport_builder,
             stream: self.stream,
             service_builder: self.service_builder.layer(layer),
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<T, S, Req, Res> Client<T, S, Tagged<Req>, Tagged<Res>>
+impl<S, Req, Res> Client<S, Tagged<Req>, Tagged<Res>>
 where
-    T: CodecBuilder<Req = Tagged<Req>, Res = Tagged<Res>> + 'static,
-    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    S: TryStream<Ok = Tagged<Res>> + Sink<Tagged<Req>> + Send + 'static,
+    <S as futures::TryStream>::Error: Debug,
+    <S as futures::Sink<Tagged<Req>>>::Error: Debug,
     Req: Unpin + Send + 'static,
     Res: Unpin + Send + 'static,
 {
     pub fn create_multiplex(
         self,
-    ) -> impl tower::Service<Tagged<Res>, Error = ClientError, Response = Tagged<Req>> {
-        let transport = self.transport_builder.build_codec(self.stream);
+    ) -> impl tower::Service<Tagged<Req>, Error = ClientError, Response = Tagged<Res>> {
         let client =
-            multiplex::Client::builder(MultiplexTransport::new(transport, SlabStore::default()))
+            multiplex::Client::builder(MultiplexTransport::new(self.stream, SlabStore::default()))
                 .build();
         self.service_builder.service(client)
     }

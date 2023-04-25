@@ -11,8 +11,10 @@ use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    handler_fn, transport::ipc, Client, Codec, CodecBuilder, CodecWrapper, RequestHandler,
-    SerdeCodec, Server, ServerMode, StreamSink,
+    handler_fn,
+    transport::{ipc, CodecTransport},
+    Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, SerdeCodec, Server, ServerMode,
+    StreamSink,
 };
 
 #[tokio::main]
@@ -21,19 +23,19 @@ pub async fn main() {
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::Transport::new("test");
     let server = Server::new(
-        transport.incoming().unwrap(),
+        CodecTransport::new(
+            transport.incoming().unwrap(),
+            SerdeCodec::<String, i32>::new(Codec::Bincode),
+        ),
         handler_fn(|req: String, cancellation_token: CancellationToken| async move { 0 }),
-        SerdeCodec::<String, i32>::new(Codec::Bincode),
         ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
     let client_transport = ipc::ClientStream::new("test");
-    let mut client = Client::new(
-        client_transport,
-        SerdeCodec::<i32, String>::new(Codec::Bincode),
-    )
-    .create_pipeline();
+    let mut client =
+        Client::new(SerdeCodec::<i32, String>::new(Codec::Bincode).build_codec(client_transport))
+            .create_pipeline();
     client.ready().await.unwrap();
     let a = client.call("test".to_owned()).await.unwrap();
     println!("{a:?}");

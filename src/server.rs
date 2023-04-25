@@ -1,11 +1,10 @@
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
-use crate::{rpc_service::RpcService, CodecBuilder, RequestHandler, ServerMode};
+use crate::{rpc_service::RpcService, RequestHandler, ServerMode};
 use async_trait::async_trait;
 use background_service::{error::BoxedError, BackgroundService, ServiceContext};
-use futures::Stream;
+use futures::{Sink, Stream, TryStream};
 use futures_cancel::FutureExt;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_stream::StreamExt;
 use tokio_tower::{multiplex, pipeline};
 use tower::{
@@ -13,60 +12,43 @@ use tower::{
     ServiceBuilder,
 };
 
-pub struct Server<H, T, S, I, E, Req, Res, L = Identity>
+pub struct Server<H, S, I, E, Req, Res, L = Identity>
 where
     H: RequestHandler<Req = Req, Res = Res> + 'static,
-    T: CodecBuilder<Req = Req, Res = Res>,
     S: Stream<Item = Result<I, E>>,
-    I: AsyncRead + AsyncWrite,
-    Req: Send + Sync + 'static,
-    Res: Send + Sync + 'static,
 {
     incoming: S,
     handler: Arc<H>,
-    codec_builder: T,
     service_builder: ServiceBuilder<L>,
     server_mode: ServerMode,
 }
 
-impl<H, T, S, I, E, Req, Res> Server<H, T, S, I, E, Req, Res>
+impl<H, S, I, E, Req, Res> Server<H, S, I, E, Req, Res>
 where
     H: RequestHandler<Req = Req, Res = Res> + 'static,
-    T: CodecBuilder<Req = Req, Res = Res>,
-    S: Stream<Item = Result<I, E>> + Send,
-    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    E: Send,
-    Req: Send + Sync + 'static,
-    Res: Send + Sync + 'static,
+    S: Stream<Item = Result<I, E>>,
 {
-    pub fn new(incoming: S, handler: H, codec_builder: T, server_mode: ServerMode) -> Self {
+    pub fn new(incoming: S, handler: H, server_mode: ServerMode) -> Self {
         Self {
             incoming,
             handler: Arc::new(handler),
-            codec_builder,
             server_mode,
             service_builder: ServiceBuilder::new(),
         }
     }
 }
 
-impl<H, T, S, I, E, Req, Res, L> Server<H, T, S, I, E, Req, Res, L>
+impl<H, S, I, E, Req, Res, L> Server<H, S, I, E, Req, Res, L>
 where
     H: RequestHandler<Req = Req, Res = Res> + 'static,
-    T: CodecBuilder<Req = Req, Res = Res>,
-    S: Stream<Item = Result<I, E>> + Send,
-    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    E: Send,
-    Req: Send + Sync + 'static,
-    Res: Send + Sync + 'static,
+    S: Stream<Item = Result<I, E>>,
 {
     pub fn layer<NewLayer>(
         self,
         layer: NewLayer,
-    ) -> Server<H, T, S, I, E, Req, Res, Stack<NewLayer, L>> {
+    ) -> Server<H, S, I, E, Req, Res, Stack<NewLayer, L>> {
         Server {
             service_builder: self.service_builder.layer(layer),
-            codec_builder: self.codec_builder,
             handler: self.handler,
             incoming: self.incoming,
             server_mode: self.server_mode,
@@ -75,12 +57,13 @@ where
 }
 
 #[async_trait]
-impl<H, T, S, I, E, Req, Res> BackgroundService for Server<H, T, S, I, E, Req, Res>
+impl<H, S, I, E, Req, Res> BackgroundService for Server<H, S, I, E, Req, Res>
 where
     H: RequestHandler<Req = Req, Res = Res> + 'static,
-    T: CodecBuilder<Req = Req, Res = Res>,
     S: Stream<Item = Result<I, E>> + Send,
-    I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    I: TryStream<Ok = Req> + Sink<Res> + Send + 'static,
+    <I as futures::TryStream>::Error: Debug,
+    <I as futures::Sink<Res>>::Error: Debug,
     E: Send,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
@@ -96,7 +79,6 @@ where
             .cancel_on_shutdown(&context.cancellation_token())
             .await
         {
-            let transport = self.codec_builder.build_codec(stream);
             let handler = self.handler.clone();
             let service_builder = self.service_builder.clone();
             let server_mode = self.server_mode;
@@ -110,14 +92,14 @@ where
                         ));
                         match server_mode {
                             ServerMode::Pipeline => {
-                                pipeline::Server::new(transport, service)
+                                pipeline::Server::new(stream, service)
                                     .cancel_on_shutdown(&context.cancellation_token())
                                     .await
                                     .unwrap()
                                     .unwrap();
                             }
                             ServerMode::Multiplex => {
-                                multiplex::Server::new(transport, service)
+                                multiplex::Server::new(stream, service)
                                     .cancel_on_shutdown(&context.cancellation_token())
                                     .await
                                     .unwrap()

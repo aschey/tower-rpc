@@ -11,8 +11,9 @@ use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    handler_fn, transport::ipc, Client, Codec, CodecBuilder, CodecWrapper, RequestHandler,
-    SerdeCodec, Server, ServerMode, StreamSink, Tagged,
+    handler_fn,
+    transport::{ipc, CodecTransport},
+    Client, Codec, CodecBuilder, RequestHandler, SerdeCodec, Server, ServerMode, Tagged,
 };
 
 #[tokio::main]
@@ -21,11 +22,13 @@ pub async fn main() {
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::Transport::new("test");
     let server = Server::new(
-        transport.incoming().unwrap(),
+        CodecTransport::new(
+            transport.incoming().unwrap(),
+            SerdeCodec::<Tagged<String>, Tagged<i32>>::new(Codec::Bincode),
+        ),
         handler_fn(
             |req: Tagged<String>, cancellation_token: CancellationToken| async move { Tagged::from(0) },
         ),
-        SerdeCodec::<Tagged<String>, Tagged<i32>>::new(Codec::Bincode),
         ServerMode::Multiplex,
     );
     let mut context = manager.get_context();
@@ -33,8 +36,8 @@ pub async fn main() {
     let client_transport = ipc::ClientStream::new("test");
 
     let mut client = Client::new(
-        client_transport,
-        SerdeCodec::<Tagged<i32>, Tagged<String>>::new(Codec::Bincode),
+        SerdeCodec::<Tagged<i32>, Tagged<String>>::new(Codec::Bincode)
+            .build_codec(client_transport),
     )
     .create_multiplex();
 

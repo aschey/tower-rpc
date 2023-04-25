@@ -10,6 +10,7 @@ bytes = "1"
 futures = "0.3"
 futures-cancel = {git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d"}
 parity-tokio-ipc = {version = "0.9", optional = true}
+pin-project = "1"
 serde = {version = "1", features = ["derive"]}
 slab = "0.4"
 thiserror = "1"
