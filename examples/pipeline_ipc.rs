@@ -11,7 +11,7 @@ use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    channel, handler_fn,
+    channel, handler_fn, serde_codec,
     transport::{ipc, CodecTransport},
     Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
     SerdeCodec, Server, ServerMode, StreamSink,
@@ -43,8 +43,7 @@ pub async fn main() {
     context.add_service(server).await.unwrap();
     let client_transport = ipc::ClientStream::new("test");
     let mut client =
-        Client::new(SerdeCodec::<(), String>::new(Codec::Bincode).build_codec(client_transport))
-            .create_pipeline();
+        Client::new(serde_codec::<i32, String>(client_transport, Codec::Bincode)).create_pipeline();
     client.ready().await.unwrap();
     let a = client.call("test".to_owned()).await.unwrap();
     println!("{a:?}");

@@ -14,7 +14,7 @@ use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    channel, handler_fn,
+    channel, handler_fn, serde_codec,
     transport::{ipc, tcp::TcpTransport, CodecTransport},
     Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
     SerdeCodec, Server, ServerMode, StreamSink,
@@ -26,13 +26,10 @@ pub async fn main() {
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = TcpTransport::bind("127.0.0.1:8080".parse().unwrap()).await;
 
-    // let mut handler = RequestHandlerStream::default();
-    // let mut stream = handler.request_stream().unwrap();
     let (tx, mut rx) = channel();
     tokio::spawn(async move {
         while let Some(req) = rx.recv().await {
             dbg!(req);
-            // res.respond(0).unwrap();
         }
     });
     let server = Server::new(
@@ -43,10 +40,10 @@ pub async fn main() {
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
 
-    let mut client = Client::new(
-        SerdeCodec::<(), String>::new(Codec::Bincode)
-            .build_codec(TcpStream::connect("127.0.0.1:8080").await.unwrap()),
-    )
+    let mut client = Client::new(serde_codec::<(), String>(
+        TcpStream::connect("127.0.0.1:8080").await.unwrap(),
+        Codec::Bincode,
+    ))
     .create_pipeline();
     client.ready().await.unwrap();
     let a = client.call("test".to_owned()).await.unwrap();

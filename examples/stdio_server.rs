@@ -8,10 +8,13 @@ use futures::{Future, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::formats::Bincode;
 use tokio_tower::{multiplex, pipeline};
-use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
+use tokio_util::{
+    codec::{LengthDelimitedCodec, LinesCodec},
+    sync::CancellationToken,
+};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    channel, handler_fn,
+    channel, codec_builder_fn, handler_fn,
     transport::{ipc, stdio::StdioTransport, CodecTransport},
     Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
     SerdeCodec, Server, ServerMode, StreamSink,
@@ -22,34 +25,23 @@ pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
 
-    // let mut handler = RequestHandlerStream::default();
-    // let mut stream = handler.request_stream().unwrap();
-    let (tx, mut rx) = channel();
-    tokio::spawn(async move {
-        while let Some(req) = rx.recv().await {
-            dbg!(req);
-            // res.respond(0).unwrap();
-        }
-    });
+    let mut stream = RequestHandlerStream::default();
+    let mut handler = stream.request_stream().unwrap();
 
     let server = Server::new(
         CodecTransport::new(
             StdioTransport::incoming(),
-            SerdeCodec::<String, ()>::new(Codec::Bincode),
+            codec_builder_fn(|s| {
+                Box::new(tokio_util::codec::Framed::new(s, LinesCodec::default()))
+            }),
         ),
-        tx,
+        stream,
         ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
-    // let client_transport = ipc::ClientStream::new("test");
-    let mut client = Client::new(
-        SerdeCodec::<(), String>::new(Codec::Bincode).build_codec(StdioTransport::default()),
-    )
-    .create_pipeline();
-    client.ready().await.unwrap();
-    let a = client.call("test".to_owned()).await.unwrap();
-    println!("{a:?}");
-    cancellation_token.cancel();
-    manager.join_on_cancel().await.unwrap();
+    while let Some((req, res)) = handler.next().await {
+        dbg!(req);
+        res.respond("test".to_owned()).unwrap();
+    }
 }

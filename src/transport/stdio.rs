@@ -5,14 +5,14 @@ use pin_project::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 #[pin_project]
-pub struct StdioTransport {
+pub struct StdioTransport<I, O> {
     #[pin]
-    stdin: tokio::io::Stdin,
+    stdin: I,
     #[pin]
-    stdout: tokio::io::Stdout,
+    stdout: O,
 }
 
-impl StdioTransport {
+impl StdioTransport<tokio::io::Stdin, tokio::io::Stdout> {
     pub fn new() -> Self {
         Self {
             stdin: tokio::io::stdin(),
@@ -20,18 +20,35 @@ impl StdioTransport {
         }
     }
 
-    pub fn incoming() -> impl Stream<Item = Result<StdioTransport, io::Error>> {
+    pub fn incoming() -> impl Stream<Item = Result<Self, io::Error>> {
         tokio_stream::once(Ok(Self::default()))
     }
 }
-
-impl Default for StdioTransport {
+impl Default for StdioTransport<tokio::io::Stdin, tokio::io::Stdout> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl AsyncRead for StdioTransport {
+impl<I, O> StdioTransport<I, O> {
+    pub fn attach(stdin: I, stdout: O) -> Self {
+        Self { stdin, stdout }
+    }
+}
+
+impl StdioTransport<tokio::process::ChildStdout, tokio::process::ChildStdin> {
+    pub fn from_child(process: &mut tokio::process::Child) -> Self {
+        Self {
+            stdin: process.stdout.take().unwrap(),
+            stdout: process.stdin.take().unwrap(),
+        }
+    }
+}
+
+impl<I, O> AsyncRead for StdioTransport<I, O>
+where
+    I: AsyncRead,
+{
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -41,7 +58,10 @@ impl AsyncRead for StdioTransport {
     }
 }
 
-impl AsyncWrite for StdioTransport {
+impl<I, O> AsyncWrite for StdioTransport<I, O>
+where
+    O: AsyncWrite,
+{
     fn poll_write(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

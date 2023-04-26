@@ -47,7 +47,7 @@ where
         let this = self.project();
         match this.inner.poll_next(cx) {
             Poll::Ready(Some(Ok(stream))) => {
-                Poll::Ready(Some(Ok(this.codec_builder.build_codec(stream))))
+                Poll::Ready(Some(Ok(this.codec_builder.build_codec(Box::new(stream)))))
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
             Poll::Ready(None) => Poll::Ready(None),

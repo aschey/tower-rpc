@@ -14,7 +14,7 @@ pin-project = "1"
 serde = {version = "1", features = ["derive"]}
 slab = "0.4"
 thiserror = "1"
-tokio = "1"
+tokio = {version = "1", features = ["sync", "process"]}
 tokio-serde = {version = "0.8"}
 tokio-stream = {version = "0.1", features = ["sync"]}
 tokio-tower = "0.7.0-rc4"
@@ -22,12 +22,12 @@ tokio-util = {version = "0.7", features = ["codec"]}
 tower = {version = "0.4", features = ["make", "util"]}
 
 [dev-dependencies]
-tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros", "time"]}
+tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros", "time", "process"]}
 
 [features]
 bincode = ["tokio-serde/bincode"]
 cbor = ["tokio-serde/cbor"]
-default = ["bincode", "ipc"]
+default = ["bincode", "json", "ipc"]
 ipc = ["parity-tokio-ipc"]
 json = ["tokio-serde/json"]
 messagepack = ["tokio-serde/messagepack"]

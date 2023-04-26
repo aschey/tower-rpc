@@ -11,7 +11,7 @@ use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
-    handler_fn,
+    handler_fn, serde_codec,
     transport::{ipc, CodecTransport},
     Client, Codec, CodecBuilder, RequestHandler, SerdeCodec, Server, ServerMode, Tagged,
 };
@@ -35,10 +35,10 @@ pub async fn main() {
     context.add_service(server).await.unwrap();
     let client_transport = ipc::ClientStream::new("test");
 
-    let mut client = Client::new(
-        SerdeCodec::<Tagged<i32>, Tagged<String>>::new(Codec::Bincode)
-            .build_codec(client_transport),
-    )
+    let mut client = Client::new(serde_codec::<Tagged<i32>, Tagged<String>>(
+        client_transport,
+        Codec::Bincode,
+    ))
     .create_multiplex();
 
     let a = client
