@@ -2,7 +2,7 @@ use std::{error::Error, fmt::Debug, io, marker::PhantomData};
 
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use futures::{Future, Sink, Stream};
+use futures::{future, Future, Sink, Stream};
 use futures_cancel::FutureExt;
 use pin_project::pin_project;
 use serde::{Deserialize, Serialize};
@@ -44,6 +44,23 @@ where
         f,
         _phantom: Default::default(),
     }
+}
+
+pub fn channel<Req>() -> (
+    impl RequestHandler<Req = Req, Res = ()>,
+    mpsc::UnboundedReceiver<Req>,
+)
+where
+    Req: Send + Sync + Debug + Clone + 'static,
+{
+    let (tx, rx) = mpsc::unbounded_channel();
+    (
+        handler_fn(move |req, _| {
+            tx.send(req).unwrap();
+            future::ready(())
+        }),
+        rx,
+    )
 }
 
 #[derive(Clone)]
@@ -136,15 +153,6 @@ pub struct Responder<Res>(oneshot::Sender<Res>);
 impl<Res> Responder<Res> {
     pub fn respond(self, response: Res) -> Result<(), Res> {
         self.0.send(response)
-    }
-}
-
-impl<Res> Responder<Res>
-where
-    Res: Default,
-{
-    pub fn ack(self) -> Result<(), Res> {
-        self.0.send(Res::default())
     }
 }
 
