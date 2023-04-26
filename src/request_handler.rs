@@ -1,10 +1,15 @@
-use std::{error::Error, io, marker::PhantomData};
+use std::{error::Error, fmt::Debug, io, marker::PhantomData, ops::Deref, task::Poll};
 
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
 use futures::{Future, Sink, Stream};
+use futures_cancel::FutureExt;
+use pin_project::pin_project;
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    sync::{mpsc, oneshot},
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::Codec;
@@ -70,6 +75,93 @@ where
         cancellation_token: CancellationToken,
     ) -> Self::Res {
         (self.f)(request, cancellation_token).await
+    }
+}
+
+pub struct RequestHandlerStream<Req, Res> {
+    _phantom: PhantomData<(Req, Res)>,
+    request_tx: mpsc::UnboundedSender<(Req, Responder<Res>)>,
+    request_rx: Option<mpsc::UnboundedReceiver<(Req, Responder<Res>)>>,
+}
+
+impl<Req, Res> Default for RequestHandlerStream<Req, Res> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Req, Res> RequestHandlerStream<Req, Res> {
+    pub fn new() -> Self {
+        let (request_tx, request_rx) = mpsc::unbounded_channel();
+        Self {
+            _phantom: Default::default(),
+            request_tx,
+            request_rx: Some(request_rx),
+        }
+    }
+    pub fn request_stream(&mut self) -> Option<RequestStream<Req, Res>> {
+        self.request_rx
+            .take()
+            .map(|request_rx| RequestStream { request_rx })
+    }
+}
+
+#[async_trait]
+impl<Req, Res> RequestHandler for RequestHandlerStream<Req, Res>
+where
+    Req: Send + Sync + Debug,
+    Res: Send + Sync + Debug,
+{
+    type Req = Req;
+    type Res = Res;
+
+    async fn handle_request(
+        &self,
+        request: Self::Req,
+        cancellation_token: CancellationToken,
+    ) -> Self::Res {
+        let (tx, rx) = oneshot::channel();
+        self.request_tx.send((request, Responder(tx))).unwrap();
+        rx.cancel_on_shutdown(&cancellation_token)
+            .await
+            .unwrap()
+            .unwrap()
+    }
+}
+
+#[must_use = "Response must be sent"]
+#[derive(Debug)]
+pub struct Responder<Res>(oneshot::Sender<Res>);
+
+impl<Res> Responder<Res> {
+    pub fn respond(self, response: Res) -> Result<(), Res> {
+        self.0.send(response)
+    }
+}
+
+impl<Res> Responder<Res>
+where
+    Res: Default,
+{
+    pub fn ack(self) -> Result<(), Res> {
+        self.0.send(Res::default())
+    }
+}
+
+#[pin_project]
+pub struct RequestStream<Req, Res> {
+    #[pin]
+    request_rx: mpsc::UnboundedReceiver<(Req, Responder<Res>)>,
+}
+
+impl<Req, Res> Stream for RequestStream<Req, Res> {
+    type Item = (Req, Responder<Res>);
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        self.project().request_rx.poll_recv(cx)
     }
 }
 

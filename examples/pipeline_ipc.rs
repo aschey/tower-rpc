@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use background_service::{BackgroundServiceManager, ServiceContext};
 use bytes::{Bytes, BytesMut};
 
-use futures::Future;
+use futures::{Future, StreamExt};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::formats::Bincode;
 use tokio_tower::{multiplex, pipeline};
@@ -13,8 +13,8 @@ use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
     handler_fn,
     transport::{ipc, CodecTransport},
-    Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, SerdeCodec, Server, ServerMode,
-    StreamSink,
+    Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
+    SerdeCodec, Server, ServerMode, StreamSink,
 };
 
 #[tokio::main]
@@ -22,12 +22,20 @@ pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::Transport::new("test");
+    let mut handler = RequestHandlerStream::default();
+    let mut stream = handler.request_stream().unwrap();
+    tokio::spawn(async move {
+        while let Some((req, res)) = stream.next().await {
+            dbg!(req);
+            res.respond(0).unwrap();
+        }
+    });
     let server = Server::new(
         CodecTransport::new(
             transport.incoming().unwrap(),
             SerdeCodec::<String, i32>::new(Codec::Bincode),
         ),
-        handler_fn(|req: String, cancellation_token: CancellationToken| async move { 0 }),
+        handler,
         ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
