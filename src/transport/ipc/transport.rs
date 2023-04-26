@@ -17,8 +17,7 @@ impl Transport {
 
     pub fn incoming(
         self,
-    ) -> io::Result<impl Stream<Item = std::io::Result<impl AsyncRead + AsyncWrite>> + 'static>
-    {
+    ) -> io::Result<impl Stream<Item = io::Result<impl AsyncRead + AsyncWrite>> + 'static> {
         self.endpoint.incoming()
     }
 }
