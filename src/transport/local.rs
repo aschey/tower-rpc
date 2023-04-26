@@ -6,49 +6,69 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-pub struct LocalTransport<T> {
-    tx: mpsc::UnboundedSender<T>,
-    rx: mpsc::UnboundedReceiver<T>,
+#[derive(Debug)]
+pub struct LocalTransport<Req, Res> {
+    tx: mpsc::UnboundedSender<Req>,
+    rx: mpsc::UnboundedReceiver<Res>,
 }
 
-impl<T> Default for LocalTransport<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> LocalTransport<T> {
-    pub fn new() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        Self { tx, rx }
-    }
-}
-
-impl<T: Debug> Sink<T> for LocalTransport<T> {
+impl<Req: Debug, Res: Debug> Sink<Req> for LocalTransport<Req, Res> {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
     fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn start_send(self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
+    fn start_send(self: Pin<&mut Self>, item: Req) -> Result<(), Self::Error> {
         self.tx.send(item).map_err(|e| e.to_string())?;
         Ok(())
     }
 
-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn poll_close(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Result<(), Self::Error>> {
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 }
 
-impl<T> Stream for LocalTransport<T> {
-    type Item = Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
+impl<Req, Res> Stream for LocalTransport<Req, Res> {
+    type Item = Result<Res, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         self.rx.poll_recv(cx).map(|s| s.map(Ok))
+    }
+}
+
+pub struct LocalTransportFactory<Req, Res> {
+    rx: mpsc::UnboundedReceiver<LocalTransport<Req, Res>>,
+}
+
+impl<Req, Res> Stream for LocalTransportFactory<Req, Res> {
+    type Item =
+        Result<LocalTransport<Req, Res>, Box<dyn std::error::Error + Send + Sync + 'static>>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.rx.poll_recv(cx).map(|s| s.map(Ok))
+    }
+}
+
+pub fn unbounded<Req, Res>() -> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
+    let (tx, rx) = mpsc::unbounded_channel();
+    (LocalTransportFactory { rx }, LocalClientStream { tx })
+}
+
+pub struct LocalClientStream<Req, Res> {
+    tx: mpsc::UnboundedSender<LocalTransport<Res, Req>>,
+}
+
+impl<Req: Debug, Res: Debug> LocalClientStream<Req, Res> {
+    pub fn connect(&self) -> LocalTransport<Req, Res> {
+        let (tx1, rx2) = mpsc::unbounded_channel();
+        let (tx2, rx1) = mpsc::unbounded_channel();
+        let transport = LocalTransport::<Res, Req> { tx: tx1, rx: rx1 };
+        self.tx.send(transport).unwrap();
+        LocalTransport { tx: tx2, rx: rx2 }
     }
 }

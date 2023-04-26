@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Debug, io, marker::PhantomData, ops::Deref, task::Poll};
+use std::{error::Error, fmt::Debug, io, marker::PhantomData};
 
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
