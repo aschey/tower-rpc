@@ -5,14 +5,17 @@ use background_service::{BackgroundServiceManager, ServiceContext};
 use bytes::{Bytes, BytesMut};
 
 use futures::{Future, StreamExt};
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::{TcpSocket, TcpStream},
+};
 use tokio_serde::formats::Bincode;
 use tokio_tower::{multiplex, pipeline};
 use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
 use tower::{Service, ServiceBuilder, ServiceExt};
 use tower_rpc::{
     channel, handler_fn,
-    transport::{ipc, CodecTransport},
+    transport::{ipc, tcp::TcpTransport, CodecTransport},
     Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
     SerdeCodec, Server, ServerMode, StreamSink,
 };
@@ -21,7 +24,8 @@ use tower_rpc::{
 pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = ipc::Transport::new("test");
+    let transport = TcpTransport::bind("127.0.0.1:8080".parse().unwrap()).await;
+
     // let mut handler = RequestHandlerStream::default();
     // let mut stream = handler.request_stream().unwrap();
     let (tx, mut rx) = channel();
@@ -32,19 +36,18 @@ pub async fn main() {
         }
     });
     let server = Server::new(
-        CodecTransport::new(
-            transport.incoming().unwrap(),
-            SerdeCodec::<String, ()>::new(Codec::Bincode),
-        ),
+        CodecTransport::new(transport, SerdeCodec::<String, ()>::new(Codec::Bincode)),
         tx,
         ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
-    let client_transport = ipc::ClientStream::new("test");
-    let mut client =
-        Client::new(SerdeCodec::<(), String>::new(Codec::Bincode).build_codec(client_transport))
-            .create_pipeline();
+
+    let mut client = Client::new(
+        SerdeCodec::<(), String>::new(Codec::Bincode)
+            .build_codec(TcpStream::connect("127.0.0.1:8080").await.unwrap()),
+    )
+    .create_pipeline();
     client.ready().await.unwrap();
     let a = client.call("test".to_owned()).await.unwrap();
     println!("{a:?}");
