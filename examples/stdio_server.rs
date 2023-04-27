@@ -1,23 +1,13 @@
-use std::{future, io, marker::PhantomData, pin::Pin, process::Stdio, task::Poll};
+use background_service::BackgroundServiceManager;
 
-use async_trait::async_trait;
-use background_service::{BackgroundServiceManager, ServiceContext};
-use bytes::{Bytes, BytesMut};
+use futures::StreamExt;
 
-use futures::{Future, StreamExt};
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_serde::formats::Bincode;
-use tokio_tower::{multiplex, pipeline};
-use tokio_util::{
-    codec::{LengthDelimitedCodec, LinesCodec},
-    sync::CancellationToken,
-};
-use tower::{Service, ServiceBuilder, ServiceExt};
+use tokio_util::{codec::LinesCodec, sync::CancellationToken};
+
 use tower_rpc::{
-    channel, codec_builder_fn, handler_fn,
-    transport::{ipc, stdio::StdioTransport, CodecTransport},
-    Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, RequestHandlerStream, RequestStream,
-    SerdeCodec, Server, ServerMode, StreamSink,
+    codec_builder_fn,
+    transport::{stdio::StdioTransport, CodecTransport},
+    RequestHandlerStream, Server, ServerMode,
 };
 
 #[tokio::main]

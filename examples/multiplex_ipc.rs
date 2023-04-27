@@ -1,19 +1,11 @@
-use std::{future, io, marker::PhantomData, pin::Pin, task::Poll};
+use background_service::BackgroundServiceManager;
 
-use async_trait::async_trait;
-use background_service::{BackgroundServiceManager, ServiceContext};
-use bytes::{Bytes, BytesMut};
-
-use futures::Future;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_serde::formats::Bincode;
-use tokio_tower::{multiplex, pipeline};
-use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
-use tower::{Service, ServiceBuilder, ServiceExt};
+use tokio_util::sync::CancellationToken;
+use tower::{Service, ServiceExt};
 use tower_rpc::{
     handler_fn, serde_codec,
     transport::{ipc, CodecTransport},
-    Client, Codec, CodecBuilder, RequestHandler, SerdeCodec, Server, ServerMode, Tagged,
+    Client, Codec, SerdeCodec, Server, ServerMode, Tagged,
 };
 
 #[tokio::main]
@@ -27,7 +19,9 @@ pub async fn main() {
             SerdeCodec::<Tagged<String>, Tagged<i32>>::new(Codec::Bincode),
         ),
         handler_fn(
-            |req: Tagged<String>, cancellation_token: CancellationToken| async move { Tagged::from(0) },
+            |_req: Tagged<String>, _cancellation_token: CancellationToken| async move {
+                Tagged::from(0)
+            },
         ),
         ServerMode::Multiplex,
     );

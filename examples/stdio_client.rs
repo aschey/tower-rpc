@@ -1,11 +1,8 @@
 use std::process::Stdio;
 
-use tokio_tower::pipeline;
 use tokio_util::codec::LinesCodec;
 use tower::{Service, ServiceExt};
-use tower_rpc::{
-    codec_builder_fn, transport::stdio::StdioTransport, Client, Codec, CodecBuilder, SerdeCodec,
-};
+use tower_rpc::{transport::stdio::StdioTransport, Client};
 
 #[tokio::main]
 pub async fn main() {

@@ -1,23 +1,11 @@
-use std::{future, io, marker::PhantomData, pin::Pin, task::Poll};
+use background_service::BackgroundServiceManager;
 
-use async_trait::async_trait;
-use background_service::{BackgroundServiceManager, ServiceContext};
-use bytes::{Bytes, BytesMut};
-
-use futures::Future;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_serde::formats::Bincode;
-use tokio_tower::{multiplex, pipeline};
-use tokio_util::{codec::LengthDelimitedCodec, sync::CancellationToken};
-use tower::{Service, ServiceBuilder, ServiceExt};
+use tokio_util::sync::CancellationToken;
+use tower::{Service, ServiceExt};
 use tower_rpc::{
     handler_fn,
-    transport::{
-        ipc,
-        local::{self, LocalTransport},
-    },
-    Client, Codec, CodecBuilder, CodecWrapper, RequestHandler, SerdeCodec, Server, ServerMode,
-    StreamSink,
+    transport::local::{self},
+    Client, Server, ServerMode,
 };
 
 #[tokio::main]
@@ -27,7 +15,7 @@ pub async fn main() {
     let (server_transport, client_stream) = local::unbounded();
     let server = Server::new(
         server_transport,
-        handler_fn(|req: String, cancellation_token: CancellationToken| async move { 0 }),
+        handler_fn(|_req: String, _cancellation_token: CancellationToken| async move { 0 }),
         ServerMode::Pipeline,
     );
     let mut context = manager.get_context();

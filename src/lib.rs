@@ -18,7 +18,9 @@ mod client;
 pub use client::*;
 mod tagged;
 pub use tagged::*;
+mod codec_builder;
 pub mod transport;
+pub use codec_builder::*;
 
 pub fn serde_codec<Req, Res>(
     incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
