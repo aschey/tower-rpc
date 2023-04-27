@@ -1,29 +1,38 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    sync::atomic::{AtomicUsize, Ordering},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
+use tower::{Service, ServiceExt};
 use tower_rpc::{
-    transport::{stdio::StdioTransport, CodecTransport},
-    Codec, RequestHandler, SerdeCodec, Server,
+    transport::local::{self},
+    Client, RequestHandler, Server,
 };
 
 #[tokio::main]
 pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = StdioTransport::incoming();
+    let (transport, client_stream) = local::unbounded();
 
-    let server = Server::pipeline(
-        CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
-        Handler::default(),
-    );
+    let server = Server::pipeline(transport, Handler::default());
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
 
-    manager.cancel_on_signal().await.unwrap();
+    let mut client = Client::new(client_stream.connect()).create_pipeline();
+    let mut i = 0;
+
+    loop {
+        client.ready().await.unwrap();
+        i = client.call(i).await.unwrap();
+        println!("Pong {i}");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }
 
 #[derive(Default)]
@@ -42,8 +51,7 @@ impl RequestHandler for Handler {
         request: Self::Req,
         _cancellation_token: CancellationToken,
     ) -> Self::Res {
-        // Print to stderr so we don't interfere with the transport
-        eprintln!("Ping {request}");
+        println!("Ping {request}");
         self.count.fetch_add(1, Ordering::SeqCst) + 1
     }
 }

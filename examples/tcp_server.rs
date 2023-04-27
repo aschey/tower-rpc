@@ -6,7 +6,7 @@ use background_service::BackgroundServiceManager;
 use tokio_util::sync::CancellationToken;
 
 use tower_rpc::{
-    transport::{stdio::StdioTransport, CodecTransport},
+    transport::{tcp::TcpTransport, CodecTransport},
     Codec, RequestHandler, SerdeCodec, Server,
 };
 
@@ -14,7 +14,7 @@ use tower_rpc::{
 pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = StdioTransport::incoming();
+    let transport = TcpTransport::bind("127.0.0.1:8080".parse().unwrap()).await;
 
     let server = Server::pipeline(
         CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
@@ -42,8 +42,7 @@ impl RequestHandler for Handler {
         request: Self::Req,
         _cancellation_token: CancellationToken,
     ) -> Self::Res {
-        // Print to stderr so we don't interfere with the transport
-        eprintln!("Ping {request}");
+        println!("Ping {request}");
         self.count.fetch_add(1, Ordering::SeqCst) + 1
     }
 }

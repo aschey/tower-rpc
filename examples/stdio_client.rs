@@ -1,8 +1,7 @@
-use std::process::Stdio;
+use std::{process::Stdio, time::Duration};
 
-use tokio_util::codec::LinesCodec;
 use tower::{Service, ServiceExt};
-use tower_rpc::{transport::stdio::StdioTransport, Client};
+use tower_rpc::{serde_codec, transport::stdio::StdioTransport, Client, Codec};
 
 #[tokio::main]
 pub async fn main() {
@@ -13,12 +12,16 @@ pub async fn main() {
         .spawn()
         .unwrap();
 
-    let mut client = Client::new(tokio_util::codec::Framed::new(
-        StdioTransport::from_child(&mut process),
-        LinesCodec::default(),
-    ))
-    .create_pipeline();
-    client.ready().await.unwrap();
-    let a = client.call("test".to_owned()).await.unwrap();
-    println!("RES {a:?}");
+    let client_stream = StdioTransport::from_child(&mut process);
+    let mut client =
+        Client::new(serde_codec::<usize, usize>(client_stream, Codec::Bincode)).create_pipeline();
+    let mut i = 0;
+
+    loop {
+        client.ready().await.unwrap();
+
+        i = client.call(i).await.unwrap();
+        println!("Pong {i}");
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
 }
