@@ -5,7 +5,7 @@ use tower::{Service, ServiceExt};
 use tower_rpc::{
     handler_fn, serde_codec,
     transport::{ipc, CodecTransport},
-    Client, Codec, SerdeCodec, Server, ServerMode, Tagged,
+    Client, Codec, SerdeCodec, Server, Tagged,
 };
 
 #[tokio::main]
@@ -13,17 +13,12 @@ pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::Transport::new("test");
-    let server = Server::new(
+    let server = Server::multiplex(
         CodecTransport::new(
             transport.incoming().unwrap(),
             SerdeCodec::<Tagged<String>, Tagged<i32>>::new(Codec::Bincode),
         ),
-        handler_fn(
-            |_req: Tagged<String>, _cancellation_token: CancellationToken| async move {
-                Tagged::from(0)
-            },
-        ),
-        ServerMode::Multiplex,
+        handler_fn(|_req: String, _cancellation_token: CancellationToken| async move { 0 }),
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
@@ -39,7 +34,7 @@ pub async fn main() {
         .ready()
         .await
         .unwrap()
-        .call("test".to_owned().into())
+        .call("test".to_owned())
         .await
         .unwrap();
     println!("{a:?}");

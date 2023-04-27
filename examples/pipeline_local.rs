@@ -5,7 +5,7 @@ use tower::{Service, ServiceExt};
 use tower_rpc::{
     handler_fn,
     transport::local::{self},
-    Client, Server, ServerMode,
+    Client, Server,
 };
 
 #[tokio::main]
@@ -13,10 +13,9 @@ pub async fn main() {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let (server_transport, client_stream) = local::unbounded();
-    let server = Server::new(
+    let server = Server::pipeline(
         server_transport,
         handler_fn(|_req: String, _cancellation_token: CancellationToken| async move { 0 }),
-        ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();

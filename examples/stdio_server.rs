@@ -7,7 +7,7 @@ use tokio_util::{codec::LinesCodec, sync::CancellationToken};
 use tower_rpc::{
     codec_builder_fn,
     transport::{stdio::StdioTransport, CodecTransport},
-    RequestHandlerStream, Server, ServerMode,
+    RequestHandlerStream, Server,
 };
 
 #[tokio::main]
@@ -18,7 +18,7 @@ pub async fn main() {
     let mut stream = RequestHandlerStream::default();
     let mut handler = stream.request_stream().unwrap();
 
-    let server = Server::new(
+    let server = Server::pipeline(
         CodecTransport::new(
             StdioTransport::incoming(),
             codec_builder_fn(|s| {
@@ -26,7 +26,6 @@ pub async fn main() {
             }),
         ),
         stream,
-        ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();

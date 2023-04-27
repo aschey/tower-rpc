@@ -5,7 +5,7 @@ use tower::{Service, ServiceExt};
 use tower_rpc::{
     channel, serde_codec,
     transport::{ipc, CodecTransport},
-    Client, Codec, SerdeCodec, Server, ServerMode,
+    Client, Codec, SerdeCodec, Server,
 };
 
 #[tokio::main]
@@ -22,13 +22,12 @@ pub async fn main() {
             // res.respond(0).unwrap();
         }
     });
-    let server = Server::new(
+    let server = Server::pipeline(
         CodecTransport::new(
             transport.incoming().unwrap(),
             SerdeCodec::<String, ()>::new(Codec::Bincode),
         ),
         tx,
-        ServerMode::Pipeline,
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();

@@ -11,7 +11,7 @@ use tower::{
     ServiceBuilder,
 };
 
-use crate::Tagged;
+use crate::{rpc_service::DemultiplexService, Tagged};
 
 pub struct Client<S, Req, Res, L = Identity> {
     stream: S,
@@ -59,13 +59,14 @@ where
     Req: Unpin + Send + 'static,
     Res: Unpin + Send + 'static,
 {
-    pub fn create_multiplex(
-        self,
-    ) -> impl tower::Service<Tagged<Req>, Error = ClientError, Response = Tagged<Res>> {
+    pub fn create_multiplex(self) -> impl tower::Service<Req, Error = ClientError, Response = Res> {
         let client =
             multiplex::Client::builder(MultiplexTransport::new(self.stream, SlabStore::default()))
                 .build();
-        self.service_builder.service(client)
+
+        self.service_builder
+            .layer_fn(DemultiplexService::new)
+            .service(client)
     }
 }
 

@@ -45,8 +45,16 @@ pub fn length_delimited_codec(
     ))
 }
 
-#[derive(Clone, Copy)]
-pub enum ServerMode {
-    Multiplex,
-    Pipeline,
+mod private {
+    pub trait Sealed {}
 }
+
+pub trait ServerMode: private::Sealed {}
+
+pub struct Pipeline;
+impl private::Sealed for Pipeline {}
+impl ServerMode for Pipeline {}
+
+pub struct Multiplex {}
+impl private::Sealed for Multiplex {}
+impl ServerMode for Multiplex {}
