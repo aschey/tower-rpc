@@ -4,6 +4,7 @@ use std::{marker::PhantomData, pin::Pin, task::Poll};
 
 use crate::{Request, Tagged};
 
+#[derive(Clone, Debug)]
 pub struct MultiplexService<S> {
     inner: S,
 }
@@ -39,6 +40,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct DemultiplexService<S, Res> {
     inner: S,
     _phantom: PhantomData<Res>,
@@ -75,6 +77,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct RequestService<S, Res> {
     context: ServiceContext,
     inner: S,

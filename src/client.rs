@@ -8,6 +8,7 @@ use tokio_tower::{
 };
 use tower::{
     layer::util::{Identity, Stack},
+    util::BoxService,
     ServiceBuilder,
 };
 
@@ -35,9 +36,9 @@ where
         }
     }
 
-    pub fn create_pipeline(self) -> impl tower::Service<Req, Error = ClientError, Response = Res> {
+    pub fn create_pipeline(self) -> BoxService<Req, Res, ClientError> {
         let client = pipeline::Client::new(self.stream);
-        self.service_builder.service(client)
+        BoxService::new(self.service_builder.service(client))
     }
 }
 
@@ -57,16 +58,18 @@ where
     <S as futures::TryStream>::Error: Debug,
     <S as futures::Sink<Tagged<Req>>>::Error: Debug,
     Req: Unpin + Send + 'static,
-    Res: Unpin + Send + 'static,
+    Res: Unpin + Send + Sync + Debug + 'static,
 {
-    pub fn create_multiplex(self) -> impl tower::Service<Req, Error = ClientError, Response = Res> {
+    pub fn create_multiplex(self) -> BoxService<Req, Res, ClientError> {
         let client =
             multiplex::Client::builder(MultiplexTransport::new(self.stream, SlabStore::default()))
                 .build();
 
-        self.service_builder
-            .layer_fn(DemultiplexService::new)
-            .service(client)
+        BoxService::new(
+            self.service_builder
+                .layer_fn(DemultiplexService::new)
+                .service(client),
+        )
     }
 }
 
