@@ -23,6 +23,8 @@ pub mod transport;
 pub use codec_builder::*;
 mod request;
 pub use request::*;
+mod router;
+pub use router::*;
 
 pub fn serde_codec<Req, Res>(
     incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,

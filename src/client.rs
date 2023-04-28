@@ -6,17 +6,12 @@ use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
 };
-use tower::{
-    layer::util::{Identity, Stack},
-    util::BoxService,
-    ServiceBuilder,
-};
+use tower::{util::BoxService, ServiceBuilder};
 
 use crate::{rpc_service::DemultiplexService, Tagged};
 
-pub struct Client<S, Req, Res, L = Identity> {
+pub struct Client<S, Req, Res> {
     stream: S,
-    service_builder: ServiceBuilder<L>,
     _phantom: PhantomData<(Req, Res)>,
 }
 
@@ -31,24 +26,12 @@ where
     pub fn new(stream: S) -> Self {
         Self {
             stream,
-            service_builder: ServiceBuilder::default(),
             _phantom: Default::default(),
         }
     }
 
-    pub fn create_pipeline(self) -> BoxService<Req, Res, ClientError> {
-        let client = pipeline::Client::new(self.stream);
-        BoxService::new(self.service_builder.service(client))
-    }
-}
-
-impl<S, Req, Res, L> Client<S, Req, Res, L> {
-    pub fn layer<NewLayer>(self, layer: NewLayer) -> Client<S, Req, Res, Stack<NewLayer, L>> {
-        Client {
-            stream: self.stream,
-            service_builder: self.service_builder.layer(layer),
-            _phantom: Default::default(),
-        }
+    pub fn create_pipeline(self) -> pipeline::client::Client<S, ClientError, Req> {
+        pipeline::Client::new(self.stream)
     }
 }
 
@@ -66,7 +49,7 @@ where
                 .build();
 
         BoxService::new(
-            self.service_builder
+            ServiceBuilder::default()
                 .layer_fn(DemultiplexService::new)
                 .service(client),
         )

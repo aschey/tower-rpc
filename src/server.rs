@@ -10,12 +10,9 @@ use futures::{Sink, Stream, TryStream};
 use futures_cancel::FutureExt;
 use tokio_stream::StreamExt;
 use tokio_tower::{multiplex, pipeline};
-use tower::{
-    layer::util::{Identity, Stack},
-    MakeService, ServiceBuilder,
-};
+use tower::{MakeService, ServiceBuilder};
 
-pub struct Server<K, H, S, I, E, M, Req, Res, L = Identity>
+pub struct Server<K, H, S, I, E, M, Req, Res>
 where
     K: MakeService<(), Request<Req>, Service = H>,
     H: tower::Service<Request<Req>, Response = Res>,
@@ -24,7 +21,6 @@ where
 {
     incoming: S,
     handler: K,
-    service_builder: ServiceBuilder<L>,
     _phantom: PhantomData<(M, H, Req, Res)>,
 }
 
@@ -47,7 +43,6 @@ where
         Self {
             incoming,
             handler,
-            service_builder: ServiceBuilder::new(),
             _phantom: Default::default(),
         }
     }
@@ -61,13 +56,11 @@ where
             .await
         {
             let handler = self.handler.make_service(()).await.unwrap();
-            let service_builder = self.service_builder.clone();
-
             context
                 .add_service((
                     "ipc_handler".to_owned(),
                     move |context: ServiceContext| async move {
-                        let service = service_builder
+                        let service = ServiceBuilder::default()
                             .layer_fn(|inner| RequestService::new(context.clone(), inner))
                             .service(handler);
                         pipeline::Server::new(stream, service)
@@ -104,7 +97,6 @@ where
         Self {
             incoming,
             handler,
-            service_builder: ServiceBuilder::new(),
             _phantom: Default::default(),
         }
     }
@@ -118,13 +110,11 @@ where
             .await
         {
             let handler = self.handler.make_service(()).await.unwrap();
-            let service_builder = self.service_builder.clone();
-
             context
                 .add_service((
                     "ipc_handler".to_owned(),
                     move |context: ServiceContext| async move {
-                        let service = service_builder
+                        let service = ServiceBuilder::default()
                             .layer_fn(MultiplexService::new)
                             .layer_fn(|inner| RequestService::new(context.clone(), inner))
                             .service(handler);
@@ -139,26 +129,6 @@ where
                 ))
                 .await
                 .unwrap();
-        }
-    }
-}
-
-impl<K, H, S, I, E, M, Req, Res, L> Server<K, H, S, I, E, M, Req, Res, L>
-where
-    K: MakeService<(), Request<Req>, Service = H>,
-    H: tower::Service<Request<Req>, Response = Res>,
-    S: Stream<Item = Result<I, E>>,
-    M: ServerMode,
-{
-    pub fn layer<NewLayer>(
-        self,
-        layer: NewLayer,
-    ) -> Server<K, H, S, I, E, M, Req, Res, Stack<NewLayer, L>> {
-        Server {
-            service_builder: self.service_builder.layer(layer),
-            handler: self.handler,
-            incoming: self.incoming,
-            _phantom: self._phantom,
         }
     }
 }
