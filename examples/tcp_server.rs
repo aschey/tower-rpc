@@ -1,13 +1,18 @@
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{
+    future,
+    sync::atomic::{AtomicUsize, Ordering},
+    task::Poll,
+};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
+use tower::{service_fn, BoxError};
 use tower_rpc::{
     transport::{tcp::TcpTransport, CodecTransport},
-    Codec, RequestHandler, SerdeCodec, Server,
+    Codec, MakeHandler, Request, SerdeCodec, Server,
 };
 
 #[tokio::main]
@@ -18,7 +23,7 @@ pub async fn main() {
 
     let server = Server::pipeline(
         CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
-        Handler::default(),
+        service_fn(Handler::make),
     );
     let mut context = manager.get_context();
     context.add_service(server).await.unwrap();
@@ -32,17 +37,21 @@ struct Handler {
 }
 
 #[async_trait]
-impl RequestHandler for Handler {
-    type Req = usize;
+impl tower::Service<Request<usize>> for Handler {
+    type Response = usize;
+    type Error = BoxError;
+    type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    type Res = usize;
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
 
-    async fn handle_request(
-        &self,
-        request: Self::Req,
-        _cancellation_token: CancellationToken,
-    ) -> Self::Res {
-        println!("Ping {request}");
-        self.count.fetch_add(1, Ordering::SeqCst) + 1
+    fn call(&mut self, req: Request<usize>) -> Self::Future {
+        println!("Ping {}", req.value);
+
+        future::ready(Ok(self.count.fetch_add(1, Ordering::SeqCst) + 1))
     }
 }

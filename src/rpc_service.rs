@@ -1,8 +1,8 @@
+use background_service::ServiceContext;
 use futures::Future;
-use std::{io, marker::PhantomData, pin::Pin, sync::Arc, task::Poll};
-use tokio_util::sync::CancellationToken;
+use std::{marker::PhantomData, pin::Pin, task::Poll};
 
-use crate::{RequestHandler, Tagged};
+use crate::{Request, Tagged};
 
 pub struct MultiplexService<S> {
     inner: S,
@@ -75,46 +75,43 @@ where
     }
 }
 
-#[derive(Default)]
-pub struct RpcService<H>
-where
-    H: RequestHandler + 'static,
-{
-    handler: Arc<H>,
-    cancellation_token: CancellationToken,
+pub struct RequestService<S, Res> {
+    context: ServiceContext,
+    inner: S,
+    _phantom: PhantomData<Res>,
 }
 
-impl<H> RpcService<H>
-where
-    H: RequestHandler + 'static,
-{
-    pub fn new(handler: Arc<H>, cancellation_token: CancellationToken) -> Self {
+impl<S, Res> RequestService<S, Res> {
+    pub fn new(context: ServiceContext, inner: S) -> Self {
         Self {
-            handler,
-            cancellation_token,
+            context,
+            inner,
+            _phantom: Default::default(),
         }
     }
 }
 
-impl<H> tower::Service<H::Req> for RpcService<H>
+impl<S, Req, Res> tower::Service<Req> for RequestService<S, Res>
 where
-    H: RequestHandler + 'static,
+    Req: Send,
+    S: tower::Service<Request<Req>, Response = Res>,
+    S::Future: Send + 'static,
 {
-    type Response = H::Res;
-    type Error = io::Error;
+    type Error = S::Error;
+    type Response = Res;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, req: H::Req) -> Self::Future {
-        let cancellation_token = self.cancellation_token.clone();
-        let handler = self.handler.clone();
-
-        Box::pin(async move { Ok(handler.handle_request(req, cancellation_token).await) })
+    fn call(&mut self, req: Req) -> Self::Future {
+        let res = self.inner.call(Request {
+            context: self.context.clone(),
+            value: req,
+        });
+        Box::pin(async move {
+            let res = res.await?;
+            Ok(res)
+        })
     }
 }

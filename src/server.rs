@@ -1,8 +1,8 @@
-use std::{fmt::Debug, marker::PhantomData, sync::Arc};
+use std::{fmt::Debug, marker::PhantomData};
 
 use crate::{
-    rpc_service::{MultiplexService, RpcService},
-    Multiplex, Pipeline, RequestHandler, ServerMode, Tagged,
+    rpc_service::{MultiplexService, RequestService},
+    Multiplex, Pipeline, Request, ServerMode, Tagged,
 };
 use async_trait::async_trait;
 use background_service::{error::BoxedError, BackgroundService, ServiceContext};
@@ -12,24 +12,29 @@ use tokio_stream::StreamExt;
 use tokio_tower::{multiplex, pipeline};
 use tower::{
     layer::util::{Identity, Stack},
-    ServiceBuilder,
+    MakeService, ServiceBuilder,
 };
 
-pub struct Server<H, S, I, E, M, Req, Res, L = Identity>
+pub struct Server<K, H, S, I, E, M, Req, Res, L = Identity>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H>,
+    H: tower::Service<Request<Req>, Response = Res>,
     S: Stream<Item = Result<I, E>>,
     M: ServerMode,
 {
     incoming: S,
-    handler: Arc<H>,
+    handler: K,
     service_builder: ServiceBuilder<L>,
-    _phantom: PhantomData<M>,
+    _phantom: PhantomData<(M, H, Req, Res)>,
 }
 
-impl<H, S, I, E, Req, Res> Server<H, S, I, E, Pipeline, Req, Res>
+impl<K, H, S, I, E, Req, Res> Server<K, H, S, I, E, Pipeline, Req, Res>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H>,
+    K::MakeError: Debug,
+    H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
+    H::Future: Send + 'static,
+    H::Error: Send + Debug,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Req> + Sink<Res> + Send + 'static,
     <I as futures::TryStream>::Error: Debug,
@@ -38,16 +43,16 @@ where
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
-    pub fn pipeline(incoming: S, handler: H) -> Self {
+    pub fn pipeline(incoming: S, handler: K) -> Self {
         Self {
             incoming,
-            handler: Arc::new(handler),
+            handler,
             service_builder: ServiceBuilder::new(),
             _phantom: Default::default(),
         }
     }
 
-    async fn run_pipeline(self, mut context: ServiceContext) {
+    async fn run_pipeline(mut self, mut context: ServiceContext) {
         let incoming = self.incoming;
         futures::pin_mut!(incoming);
         while let Ok(Some(Ok(stream))) = incoming
@@ -55,17 +60,16 @@ where
             .cancel_on_shutdown(&context.cancellation_token())
             .await
         {
-            let handler = self.handler.clone();
+            let handler = self.handler.make_service(()).await.unwrap();
             let service_builder = self.service_builder.clone();
 
             context
                 .add_service((
                     "ipc_handler".to_owned(),
                     move |context: ServiceContext| async move {
-                        let service = service_builder.service(RpcService::new(
-                            handler.clone(),
-                            context.cancellation_token(),
-                        ));
+                        let service = service_builder
+                            .layer_fn(|inner| RequestService::new(context.clone(), inner))
+                            .service(handler);
                         pipeline::Server::new(stream, service)
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
@@ -81,9 +85,13 @@ where
     }
 }
 
-impl<H, S, I, E, Req, Res> Server<H, S, I, E, Multiplex, Req, Res>
+impl<K, H, S, I, E, Req, Res> Server<K, H, S, I, E, Multiplex, Req, Res>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H>,
+    K::MakeError: Debug,
+    H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
+    H::Future: Send + 'static,
+    H::Error: Send + Debug,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Tagged<Req>> + Sink<Tagged<Res>> + Send + 'static,
     <I as futures::TryStream>::Error: Debug,
@@ -92,16 +100,16 @@ where
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,
 {
-    pub fn multiplex(incoming: S, handler: H) -> Self {
+    pub fn multiplex(incoming: S, handler: K) -> Self {
         Self {
             incoming,
-            handler: Arc::new(handler),
+            handler,
             service_builder: ServiceBuilder::new(),
             _phantom: Default::default(),
         }
     }
 
-    async fn run_multiplex(self, mut context: ServiceContext) {
+    async fn run_multiplex(mut self, mut context: ServiceContext) {
         let incoming = self.incoming;
         futures::pin_mut!(incoming);
         while let Ok(Some(Ok(stream))) = incoming
@@ -109,16 +117,17 @@ where
             .cancel_on_shutdown(&context.cancellation_token())
             .await
         {
-            let handler = self.handler.clone();
+            let handler = self.handler.make_service(()).await.unwrap();
             let service_builder = self.service_builder.clone();
 
             context
                 .add_service((
                     "ipc_handler".to_owned(),
                     move |context: ServiceContext| async move {
-                        let service = service_builder.layer_fn(MultiplexService::new).service(
-                            RpcService::new(handler.clone(), context.cancellation_token()),
-                        );
+                        let service = service_builder
+                            .layer_fn(MultiplexService::new)
+                            .layer_fn(|inner| RequestService::new(context.clone(), inner))
+                            .service(handler);
                         multiplex::Server::new(stream, service)
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
@@ -134,16 +143,17 @@ where
     }
 }
 
-impl<H, S, I, E, M, Req, Res, L> Server<H, S, I, E, M, Req, Res, L>
+impl<K, H, S, I, E, M, Req, Res, L> Server<K, H, S, I, E, M, Req, Res, L>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H>,
+    H: tower::Service<Request<Req>, Response = Res>,
     S: Stream<Item = Result<I, E>>,
     M: ServerMode,
 {
     pub fn layer<NewLayer>(
         self,
         layer: NewLayer,
-    ) -> Server<H, S, I, E, M, Req, Res, Stack<NewLayer, L>> {
+    ) -> Server<K, H, S, I, E, M, Req, Res, Stack<NewLayer, L>> {
         Server {
             service_builder: self.service_builder.layer(layer),
             handler: self.handler,
@@ -154,9 +164,14 @@ where
 }
 
 #[async_trait]
-impl<H, S, I, E, Req, Res> BackgroundService for Server<H, S, I, E, Pipeline, Req, Res>
+impl<K, H, S, I, E, Req, Res> BackgroundService for Server<K, H, S, I, E, Pipeline, Req, Res>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H> + Send,
+    K::MakeError: Debug,
+    K::Future: Send,
+    H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
+    H::Future: Send + 'static,
+    H::Error: Send + Debug,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Req> + Sink<Res> + Send + 'static,
     <I as futures::TryStream>::Error: Debug,
@@ -168,16 +183,21 @@ where
     fn name(&self) -> &str {
         "ipc_server"
     }
-    async fn run(self, context: ServiceContext) -> Result<(), BoxedError> {
+    async fn run(mut self, context: ServiceContext) -> Result<(), BoxedError> {
         self.run_pipeline(context).await;
         Ok(())
     }
 }
 
 #[async_trait]
-impl<H, S, I, E, Req, Res> BackgroundService for Server<H, S, I, E, Multiplex, Req, Res>
+impl<K, H, S, I, E, Req, Res> BackgroundService for Server<K, H, S, I, E, Multiplex, Req, Res>
 where
-    H: RequestHandler<Req = Req, Res = Res> + 'static,
+    K: MakeService<(), Request<Req>, Service = H> + Send,
+    K::MakeError: Debug,
+    K::Future: Send,
+    H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
+    H::Future: Send + 'static,
+    H::Error: Send + Debug,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Tagged<Req>> + Sink<Tagged<Res>> + Send + 'static,
     <I as futures::TryStream>::Error: Debug,

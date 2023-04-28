@@ -3,98 +3,119 @@ use async_trait::async_trait;
 use futures::{future, Future, Stream};
 use futures_cancel::FutureExt;
 use pin_project::pin_project;
+use tower::BoxError;
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{convert::Infallible, fmt::Debug, marker::PhantomData, pin::Pin};
 use tokio::sync::{mpsc, oneshot};
-use tokio_util::sync::CancellationToken;
 
-#[async_trait]
-pub trait RequestHandler: Send + Sync {
-    type Req: Send + Sync;
-    type Res: Send + Sync;
+use crate::Request;
 
-    async fn handle_request(
-        &self,
-        request: Self::Req,
-        cancellation_token: CancellationToken,
-    ) -> Self::Res;
+#[derive(Debug)]
+pub struct MakeServiceFn<F, S, R>
+where
+    F: Fn() -> S,
+    S: tower::Service<R>,
+{
+    f: F,
+    _phantom: PhantomData<R>,
 }
 
-pub fn handler_fn<F, Fut, Req, Res>(f: F) -> HandlerFn<F, Fut, Req, Res>
+pub fn make_service_fn<F, S, R>(f: F) -> MakeServiceFn<F, S, R>
 where
-    Req: Send + Sync,
-    Res: Send + Sync,
-    Fut: Future<Output = Res> + Send + Sync,
-    F: Fn(Req, CancellationToken) -> Fut + Send + Sync,
+    F: Fn() -> S,
+    S: tower::Service<R>,
 {
-    HandlerFn {
+    MakeServiceFn {
         f,
         _phantom: Default::default(),
     }
 }
 
-pub fn channel<Req>() -> (
-    impl RequestHandler<Req = Req, Res = ()>,
-    mpsc::UnboundedReceiver<Req>,
-)
+impl<F, S, R> tower::Service<()> for MakeServiceFn<F, S, R>
 where
-    Req: Send + Sync + Debug + Clone + 'static,
+    F: Fn() -> S,
+    S: tower::Service<R>,
 {
-    let (tx, rx) = mpsc::unbounded_channel();
-    (
-        handler_fn(move |req, _| {
-            tx.send(req).unwrap();
-            future::ready(())
-        }),
-        rx,
-    )
-}
+    type Error = Infallible;
+    type Response = S;
+    type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-#[derive(Clone)]
-pub struct HandlerFn<F, Fut, Req, Res>
-where
-    Req: Send + Sync,
-    Res: Send + Sync,
-    Fut: Future<Output = Res> + Send + Sync,
-    F: Fn(Req, CancellationToken) -> Fut + Send + Sync,
-{
-    f: F,
-    _phantom: PhantomData<(Req, Res, Fut)>,
-}
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
 
-#[async_trait]
-impl<F, Fut, Req, Res> RequestHandler for HandlerFn<F, Fut, Req, Res>
-where
-    Req: Send + Sync + Clone,
-    Res: Send + Sync + Clone,
-    Fut: Future<Output = Res> + Send + Sync,
-    F: Fn(Req, CancellationToken) -> Fut + Send + Sync + Clone,
-{
-    type Req = Req;
-    type Res = Res;
-
-    async fn handle_request(
-        &self,
-        request: Self::Req,
-        cancellation_token: CancellationToken,
-    ) -> Self::Res {
-        (self.f)(request, cancellation_token).await
+    fn call(&mut self, _req: ()) -> Self::Future {
+        future::ready(Ok((self.f)()))
     }
 }
 
-pub struct RequestHandlerStream<Req, Res> {
-    _phantom: PhantomData<(Req, Res)>,
-    request_tx: mpsc::UnboundedSender<(Req, Responder<Res>)>,
-    request_rx: Option<mpsc::UnboundedReceiver<(Req, Responder<Res>)>>,
+pub fn channel<Req>() -> (ServiceChannel<Req>, mpsc::UnboundedReceiver<Request<Req>>) {
+    let (tx, rx) = mpsc::unbounded_channel();
+    (ServiceChannel { tx }, rx)
 }
 
-impl<Req, Res> Default for RequestHandlerStream<Req, Res> {
+pub struct ServiceChannel<Req> {
+    tx: mpsc::UnboundedSender<Request<Req>>,
+}
+
+impl<Req> tower::Service<()> for ServiceChannel<Req> {
+    type Error = BoxError;
+    type Response = ServiceSender<Req>;
+    type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, _req: ()) -> Self::Future {
+        let sender = ServiceSender {
+            tx: self.tx.clone(),
+        };
+        future::ready(Ok(sender))
+    }
+}
+
+pub struct ServiceSender<Req> {
+    tx: mpsc::UnboundedSender<Request<Req>>,
+}
+
+impl<Req: Debug> tower::Service<Request<Req>> for ServiceSender<Req> {
+    type Error = BoxError;
+    type Response = ();
+    type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, req: Request<Req>) -> Self::Future {
+        self.tx.send(req).unwrap();
+        future::ready(Ok(()))
+    }
+}
+
+pub struct RequestHandlerStreamFactory<Req, Res> {
+    _phantom: PhantomData<(Req, Res)>,
+    request_tx: mpsc::UnboundedSender<(Request<Req>, Responder<Res>)>,
+    request_rx: Option<mpsc::UnboundedReceiver<(Request<Req>, Responder<Res>)>>,
+}
+
+impl<Req, Res> Default for RequestHandlerStreamFactory<Req, Res> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<Req, Res> RequestHandlerStream<Req, Res> {
+impl<Req, Res> RequestHandlerStreamFactory<Req, Res> {
     pub fn new() -> Self {
         let (request_tx, request_rx) = mpsc::unbounded_channel();
         Self {
@@ -103,33 +124,67 @@ impl<Req, Res> RequestHandlerStream<Req, Res> {
             request_rx: Some(request_rx),
         }
     }
-    pub fn request_stream(&mut self) -> Option<RequestStream<Req, Res>> {
+
+    pub fn request_stream(&mut self) -> Option<RequestStream<Request<Req>, Res>> {
         self.request_rx
             .take()
             .map(|request_rx| RequestStream { request_rx })
     }
 }
 
-#[async_trait]
-impl<Req, Res> RequestHandler for RequestHandlerStream<Req, Res>
+impl<Req, Res> tower::Service<()> for RequestHandlerStreamFactory<Req, Res> {
+    type Error = BoxError;
+    type Response = RequestHandlerStream<Req, Res>;
+    type Future = future::Ready<Result<Self::Response, Self::Error>>;
+
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, _req: ()) -> Self::Future {
+        let stream = RequestHandlerStream {
+            _phantom: Default::default(),
+            request_tx: self.request_tx.clone(),
+        };
+        future::ready(Ok(stream))
+    }
+}
+
+pub struct RequestHandlerStream<Req, Res> {
+    _phantom: PhantomData<(Req, Res)>,
+    request_tx: mpsc::UnboundedSender<(Request<Req>, Responder<Res>)>,
+}
+
+impl<Req, Res> tower::Service<Request<Req>> for RequestHandlerStream<Req, Res>
 where
     Req: Send + Sync + Debug,
-    Res: Send + Sync + Debug,
+    Res: Send + Sync + Debug + 'static,
 {
-    type Req = Req;
-    type Res = Res;
+    type Error = BoxError;
+    type Response = Res;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    async fn handle_request(
-        &self,
-        request: Self::Req,
-        cancellation_token: CancellationToken,
-    ) -> Self::Res {
+    fn poll_ready(
+        &mut self,
+        _cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Result<(), Self::Error>> {
+        Ok(()).into()
+    }
+
+    fn call(&mut self, req: Request<Req>) -> Self::Future {
         let (tx, rx) = oneshot::channel();
-        self.request_tx.send((request, Responder(tx))).unwrap();
-        rx.cancel_on_shutdown(&cancellation_token)
-            .await
-            .unwrap()
-            .unwrap()
+        let cancellation_token = req.context.cancellation_token();
+        self.request_tx.send((req, Responder(tx))).unwrap();
+        Box::pin(async move {
+            Ok(rx
+                .cancel_on_shutdown(&cancellation_token)
+                .await
+                .unwrap()
+                .unwrap())
+        })
     }
 }
 
@@ -157,5 +212,23 @@ impl<Req, Res> Stream for RequestStream<Req, Res> {
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
         self.project().request_rx.poll_recv(cx)
+    }
+}
+
+#[async_trait]
+pub trait MakeHandler<Req>
+where
+    Self: tower::Service<Req> + Default + Sized,
+{
+    async fn make(_: ()) -> Result<Self, Infallible>;
+}
+
+#[async_trait]
+impl<S, Req> MakeHandler<Req> for S
+where
+    S: tower::Service<Req> + Default,
+{
+    async fn make(_: ()) -> Result<Self, Infallible> {
+        Ok(Self::default())
     }
 }
