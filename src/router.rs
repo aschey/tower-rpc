@@ -107,3 +107,22 @@ impl<T> RouteMatch<T> {
         self.router.at(&self.route).unwrap().params
     }
 }
+
+pub trait CallRoute<Request> {
+    type Future;
+    fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future;
+}
+
+impl<Request, T> CallRoute<Request> for T
+where
+    T: Service<RoutedRequest<Request>>,
+{
+    type Future = <Self as Service<RoutedRequest<Request>>>::Future;
+
+    fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future {
+        self.call(RoutedRequest {
+            route: route.into(),
+            value: request,
+        })
+    }
+}
