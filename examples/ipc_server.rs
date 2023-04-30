@@ -19,7 +19,7 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = ipc::Transport::new("test");
+    let transport = ipc::create_endpoint("test");
 
     let server = Server::pipeline(
         CodecTransport::new(

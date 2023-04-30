@@ -1,11 +1,9 @@
-use std::{net::SocketAddr, task::Poll};
-
 use futures::Stream;
 use pin_project::pin_project;
-use tokio::{
-    io,
-    net::{TcpListener, TcpStream},
-};
+use std::{net::SocketAddr, task::Poll};
+use tokio::{io, net::TcpListener};
+
+pub type TcpStream = tokio::net::TcpStream;
 
 #[pin_project]
 pub struct TcpTransport {

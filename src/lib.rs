@@ -9,12 +9,16 @@ mod server;
 pub use server::*;
 mod client;
 pub use client::*;
+#[cfg(feature = "multiplex")]
 mod tagged;
+#[cfg(feature = "multiplex")]
 pub use tagged::*;
 mod request;
 pub mod transport;
 pub use request::*;
+#[cfg(feature = "router")]
 mod router;
+#[cfg(feature = "router")]
 pub use router::*;
 use tower::{Service, ServiceExt};
 

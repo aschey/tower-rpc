@@ -1,12 +1,11 @@
-use self::serializer::CodecSerializer;
 use bytes::{Bytes, BytesMut};
-use serde::{Deserialize, Serialize};
 use std::io;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::LengthDelimitedCodec;
 
 mod builder;
 pub use builder::*;
+#[cfg(feature = "serde-codec")]
 mod serializer;
 
 #[derive(Clone, Debug, Copy)]
@@ -21,17 +20,18 @@ pub enum Codec {
     Cbor,
 }
 
+#[cfg(feature = "serde-codec")]
 pub fn serde_codec<Req, Res>(
     incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
     codec: Codec,
 ) -> CodecStream<Req, Res, io::Error, io::Error>
 where
-    Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
-    Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
+    Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+    Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
 {
     let stream = tokio_util::codec::Framed::new(incoming, LengthDelimitedCodec::new());
 
-    let stream = tokio_serde::Framed::new(stream, CodecSerializer::new(codec));
+    let stream = tokio_serde::Framed::new(stream, self::serializer::CodecSerializer::new(codec));
     Box::new(stream)
 }
 

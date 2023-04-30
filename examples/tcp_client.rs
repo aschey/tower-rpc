@@ -1,9 +1,6 @@
 use std::time::Duration;
-
-use tokio::net::TcpStream;
-
 use tower::BoxError;
-use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, transport::tcp::TcpStream, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

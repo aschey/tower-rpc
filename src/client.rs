@@ -1,14 +1,11 @@
 use std::{fmt::Debug, marker::PhantomData, pin::Pin};
 
 use futures::{Sink, TryStream};
-use slab::Slab;
 use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
 };
 use tower::{util::BoxService, ServiceBuilder, ServiceExt};
-
-use crate::{rpc_service::DemultiplexService, Tagged};
 
 pub struct Client<S, Req, Res> {
     stream: S,
@@ -35,11 +32,12 @@ where
     }
 }
 
-impl<S, Req, Res> Client<S, Tagged<Req>, Tagged<Res>>
+#[cfg(feature = "multiplex")]
+impl<S, Req, Res> Client<S, crate::Tagged<Req>, crate::Tagged<Res>>
 where
-    S: TryStream<Ok = Tagged<Res>> + Sink<Tagged<Req>> + Send + 'static,
+    S: TryStream<Ok = crate::Tagged<Res>> + Sink<crate::Tagged<Req>> + Send + 'static,
     <S as futures::TryStream>::Error: Debug,
-    <S as futures::Sink<Tagged<Req>>>::Error: Debug,
+    <S as futures::Sink<crate::Tagged<Req>>>::Error: Debug,
     Req: Unpin + Send + 'static,
     Res: Unpin + Send + Sync + Debug + 'static,
 {
@@ -49,7 +47,7 @@ where
                 .build();
 
         ServiceBuilder::default()
-            .layer_fn(DemultiplexService::new)
+            .layer_fn(crate::rpc_service::DemultiplexService::new)
             .service(client)
             .boxed()
     }
@@ -69,11 +67,13 @@ where
     }
 }
 
+#[cfg(feature = "multiplex")]
 pub(crate) struct SlabStore<Req, Res> {
-    slab: Slab<()>,
+    slab: slab::Slab<()>,
     _phantom: PhantomData<(Req, Res)>,
 }
 
+#[cfg(feature = "multiplex")]
 impl<Req, Res> Default for SlabStore<Req, Res> {
     fn default() -> Self {
         Self {
@@ -83,19 +83,20 @@ impl<Req, Res> Default for SlabStore<Req, Res> {
     }
 }
 
-impl<Req, Res> TagStore<Tagged<Req>, Tagged<Res>> for SlabStore<Req, Res>
+#[cfg(feature = "multiplex")]
+impl<Req, Res> TagStore<crate::Tagged<Req>, crate::Tagged<Res>> for SlabStore<Req, Res>
 where
     Req: Unpin,
     Res: Unpin,
 {
     type Tag = usize;
-    fn assign_tag(mut self: Pin<&mut Self>, request: &mut Tagged<Req>) -> usize {
+    fn assign_tag(mut self: Pin<&mut Self>, request: &mut crate::Tagged<Req>) -> usize {
         let tag = self.slab.insert(());
         request.tag = tag;
         tag
     }
 
-    fn finish_tag(mut self: Pin<&mut Self>, response: &Tagged<Res>) -> usize {
+    fn finish_tag(mut self: Pin<&mut Self>, response: &crate::Tagged<Res>) -> usize {
         self.slab.remove(response.tag);
         response.tag
     }

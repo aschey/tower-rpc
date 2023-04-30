@@ -1,9 +1,6 @@
-use crate::{serde_codec, Codec};
-
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, Stream};
 
-use serde::{Deserialize, Serialize};
 use std::{error::Error, io, marker::PhantomData};
 use tokio::io::{AsyncRead, AsyncWrite};
 
@@ -30,13 +27,15 @@ pub trait CodecBuilder: Send {
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr>;
 }
 
+#[cfg(feature = "serde-codec")]
 pub struct SerdeCodec<Req, Res> {
     _phantom: PhantomData<(Req, Res)>,
-    codec: Codec,
+    codec: crate::Codec,
 }
 
+#[cfg(feature = "serde-codec")]
 impl<Req, Res> SerdeCodec<Req, Res> {
-    pub fn new(codec: Codec) -> Self {
+    pub fn new(codec: crate::Codec) -> Self {
         Self {
             codec,
             _phantom: Default::default(),
@@ -44,10 +43,11 @@ impl<Req, Res> SerdeCodec<Req, Res> {
     }
 }
 
+#[cfg(feature = "serde-codec")]
 impl<Req, Res> CodecBuilder for SerdeCodec<Req, Res>
 where
-    Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
-    Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
+    Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+    Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
 {
     type Req = Req;
     type Res = Res;
@@ -58,7 +58,7 @@ where
         &self,
         incoming: Box<dyn AsyncReadWrite>,
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        serde_codec(incoming, self.codec)
+        crate::serde_codec(incoming, self.codec)
     }
 }
 

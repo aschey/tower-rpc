@@ -1,5 +1,6 @@
-mod transport;
-pub use transport::*;
+use std::io;
+
+use parity_tokio_ipc::{Connection, Endpoint};
 
 pub fn get_socket_address(id: &str, suffix: &str) -> String {
     let suffix_full = if suffix.is_empty() {
@@ -13,4 +14,12 @@ pub fn get_socket_address(id: &str, suffix: &str) -> String {
     #[cfg(windows)]
     let addr = format!("\\\\.\\pipe\\{id}{suffix_full}");
     addr
+}
+
+pub fn create_endpoint(app_id: impl AsRef<str>) -> Endpoint {
+    Endpoint::new(get_socket_address(app_id.as_ref(), ""))
+}
+
+pub async fn connect(app_id: impl AsRef<str>) -> io::Result<Connection> {
+    Endpoint::connect(get_socket_address(app_id.as_ref(), "")).await
 }
