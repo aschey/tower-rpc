@@ -1,3 +1,4 @@
+use crate::codec::Codec;
 use serde::{Deserialize, Serialize};
 use std::io;
 use std::marker::PhantomData;
@@ -12,9 +13,7 @@ use tokio_serde::formats::Json;
 use tokio_serde::formats::MessagePack;
 use tokio_serde::{Deserializer, Serializer};
 
-use crate::codec::Codec;
-
-pub struct CodecWrapper<Item, SinkItem>
+pub(crate) struct CodecSerializer<Item, SinkItem>
 where
     SinkItem: Serialize + Unpin,
     Item: for<'de> Deserialize<'de> + Unpin,
@@ -23,7 +22,7 @@ where
     phantom: PhantomData<(Item, SinkItem)>,
 }
 
-impl<Item, SinkItem> CodecWrapper<Item, SinkItem>
+impl<Item, SinkItem> CodecSerializer<Item, SinkItem>
 where
     SinkItem: Serialize + Unpin,
     Item: for<'de> Deserialize<'de> + Unpin,
@@ -36,7 +35,7 @@ where
     }
 }
 
-impl<Item, SinkItem> Serializer<SinkItem> for CodecWrapper<Item, SinkItem>
+impl<Item, SinkItem> Serializer<SinkItem> for CodecSerializer<Item, SinkItem>
 where
     SinkItem: Serialize + Unpin,
     Item: for<'de> Deserialize<'de> + Unpin,
@@ -61,7 +60,7 @@ where
     }
 }
 
-impl<Item, SinkItem> Deserializer<Item> for CodecWrapper<Item, SinkItem>
+impl<Item, SinkItem> Deserializer<Item> for CodecSerializer<Item, SinkItem>
 where
     SinkItem: Serialize + Unpin,
     Item: for<'de> Deserialize<'de> + Unpin,

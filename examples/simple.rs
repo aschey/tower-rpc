@@ -4,7 +4,7 @@ use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
-use tower::{service_fn, BoxError, Service, ServiceExt};
+use tower::{service_fn, BoxError};
 use tower_rpc::{
     make_service_fn,
     transport::local::{self},

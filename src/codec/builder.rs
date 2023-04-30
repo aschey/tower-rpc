@@ -1,4 +1,4 @@
-use crate::Codec;
+use crate::{serde_codec, Codec};
 
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, Stream};
@@ -58,7 +58,7 @@ where
         &self,
         incoming: Box<dyn AsyncReadWrite>,
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        crate::serde_codec(incoming, self.codec)
+        serde_codec(incoming, self.codec)
     }
 }
 
