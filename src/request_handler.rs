@@ -6,7 +6,10 @@ use pin_project::pin_project;
 use tower::BoxError;
 
 use std::{convert::Infallible, fmt::Debug, marker::PhantomData, pin::Pin};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{
+    mpsc::{self, error::SendError},
+    oneshot,
+};
 
 use crate::Request;
 
@@ -86,7 +89,7 @@ pub struct ServiceSender<Req> {
 }
 
 impl<Req: Debug> tower::Service<Request<Req>> for ServiceSender<Req> {
-    type Error = BoxError;
+    type Error = SendError<Request<Req>>;
     type Response = ();
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
@@ -98,8 +101,7 @@ impl<Req: Debug> tower::Service<Request<Req>> for ServiceSender<Req> {
     }
 
     fn call(&mut self, req: Request<Req>) -> Self::Future {
-        self.tx.send(req).unwrap();
-        future::ready(Ok(()))
+        future::ready(self.tx.send(req))
     }
 }
 

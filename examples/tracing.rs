@@ -25,7 +25,7 @@ use tracing_subscriber::{prelude::*, Registry};
 use tracing_tree2::HierarchicalLayer;
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let layer = HierarchicalLayer::default()
         .with_writer(std::io::stdout)
         .with_indent_lines(true)
@@ -37,7 +37,7 @@ pub async fn main() {
         .with_targets(true);
 
     let subscriber = Registry::default().with(layer).with(LevelFilter::INFO);
-    tracing::subscriber::set_global_default(subscriber).unwrap();
+    tracing::subscriber::set_global_default(subscriber)?;
 
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
@@ -55,9 +55,9 @@ pub async fn main() {
         }),
     );
     let mut context = manager.get_context();
-    context.add_service(server).await.unwrap();
+    context.add_service(server).await?;
 
-    let client = Client::new(client_stream.connect()).create_pipeline();
+    let client = Client::new(client_stream.connect()?).create_pipeline();
 
     let mut client = ServiceBuilder::default()
         .layer(layer_fn(|client| TracingService {
@@ -69,7 +69,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        i = client.call_ready(i).await.unwrap();
+        i = client.call_ready(i).await?;
         info!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

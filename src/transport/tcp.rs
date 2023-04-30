@@ -2,7 +2,10 @@ use std::{net::SocketAddr, task::Poll};
 
 use futures::Stream;
 use pin_project::pin_project;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::{
+    io,
+    net::{TcpListener, TcpStream},
+};
 
 #[pin_project]
 pub struct TcpTransport {
@@ -11,10 +14,10 @@ pub struct TcpTransport {
 }
 
 impl TcpTransport {
-    pub async fn bind(addr: SocketAddr) -> Self {
-        Self {
-            listener: TcpListener::bind(addr).await.unwrap(),
-        }
+    pub async fn bind(addr: SocketAddr) -> Result<Self, io::Error> {
+        Ok(Self {
+            listener: TcpListener::bind(addr).await?,
+        })
     }
 }
 

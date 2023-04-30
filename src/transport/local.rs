@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::SendError};
 
 #[derive(Debug)]
 pub struct LocalTransport<Req, Res> {
@@ -64,11 +64,11 @@ pub struct LocalClientStream<Req, Res> {
 }
 
 impl<Req: Debug, Res: Debug> LocalClientStream<Req, Res> {
-    pub fn connect(&self) -> LocalTransport<Req, Res> {
+    pub fn connect(&self) -> Result<LocalTransport<Req, Res>, SendError<LocalTransport<Res, Req>>> {
         let (tx1, rx2) = mpsc::unbounded_channel();
         let (tx2, rx1) = mpsc::unbounded_channel();
         let transport = LocalTransport::<Res, Req> { tx: tx1, rx: rx1 };
-        self.tx.send(transport).unwrap();
-        LocalTransport { tx: tx2, rx: rx2 }
+        self.tx.send(transport)?;
+        Ok(LocalTransport { tx: tx2, rx: rx2 })
     }
 }

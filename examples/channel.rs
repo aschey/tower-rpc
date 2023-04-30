@@ -4,6 +4,7 @@ use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
+use tower::BoxError;
 use tower_rpc::{
     channel,
     transport::local::{self},
@@ -11,7 +12,7 @@ use tower_rpc::{
 };
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let (transport, client_stream) = local::unbounded();
@@ -20,7 +21,7 @@ pub async fn main() {
     let server = Server::pipeline(transport, tx);
 
     let mut context = manager.get_context();
-    context.add_service(server).await.unwrap();
+    context.add_service(server).await?;
 
     tokio::spawn(async move {
         while let Some(req) = rx.recv().await {
@@ -28,11 +29,11 @@ pub async fn main() {
         }
     });
 
-    let mut client = Client::new(client_stream.connect()).create_pipeline();
+    let mut client = Client::new(client_stream.connect()?).create_pipeline();
     let mut i = 0;
 
     loop {
-        client.call_ready(i).await.unwrap();
+        client.call_ready(i).await?;
         i += 1;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

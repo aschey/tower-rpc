@@ -5,7 +5,7 @@ use background_service::BackgroundServiceManager;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 use tokio_util::sync::CancellationToken;
 
-use tower::service_fn;
+use tower::{service_fn, BoxError};
 use tower_rpc::{
     make_service_fn,
     transport::{ipc, CodecTransport},
@@ -13,14 +13,14 @@ use tower_rpc::{
 };
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::Transport::new("test");
 
     let server = Server::multiplex(
         CodecTransport::new(
-            transport.incoming().unwrap(),
+            transport.incoming()?,
             SerdeCodec::<Tagged<usize>, Tagged<usize>>::new(Codec::Bincode),
         ),
         make_service_fn(|| {
@@ -37,7 +37,9 @@ pub async fn main() {
         }),
     );
     let mut context = manager.get_context();
-    context.add_service(server).await.unwrap();
+    context.add_service(server).await?;
 
-    manager.cancel_on_signal().await.unwrap();
+    manager.cancel_on_signal().await?;
+
+    Ok(())
 }

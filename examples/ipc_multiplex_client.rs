@@ -2,15 +2,15 @@ use std::time::Duration;
 
 use parity_tokio_ipc::Endpoint;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use tower::buffer::Buffer;
+use tower::{buffer::Buffer, BoxError};
 use tower_rpc::{
     serde_codec, transport::ipc::get_socket_address, Client, Codec, ReadyServiceExt, Tagged,
 };
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let addr = get_socket_address("test", "");
-    let client_transport = Endpoint::connect(addr.clone()).await.unwrap();
+    let client_transport = Endpoint::connect(addr.clone()).await?;
     let client = Client::new(serde_codec::<Tagged<usize>, Tagged<usize>>(
         client_transport,
         Codec::Bincode,

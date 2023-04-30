@@ -37,11 +37,11 @@ impl<I, O> StdioTransport<I, O> {
 }
 
 impl StdioTransport<tokio::process::ChildStdout, tokio::process::ChildStdin> {
-    pub fn from_child(process: &mut tokio::process::Child) -> Self {
-        Self {
-            stdin: process.stdout.take().unwrap(),
-            stdout: process.stdin.take().unwrap(),
-        }
+    pub fn from_child(process: &mut tokio::process::Child) -> Option<Self> {
+        Some(Self {
+            stdin: process.stdout.take()?,
+            stdout: process.stdin.take()?,
+        })
     }
 }
 

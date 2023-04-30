@@ -16,19 +16,20 @@ use tower_rpc::{
 };
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = TcpTransport::bind("127.0.0.1:8080".parse().unwrap()).await;
+    let transport = TcpTransport::bind("127.0.0.1:8080".parse()?).await?;
 
     let server = Server::pipeline(
         CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();
-    context.add_service(server).await.unwrap();
+    context.add_service(server).await?;
 
-    manager.cancel_on_signal().await.unwrap();
+    manager.cancel_on_signal().await?;
+    Ok(())
 }
 
 #[derive(Default)]
