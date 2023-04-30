@@ -32,8 +32,11 @@ pub struct Pipeline;
 impl private::Sealed for Pipeline {}
 impl ServerMode for Pipeline {}
 
+#[cfg(feature = "multiplex")]
 pub struct Multiplex {}
+#[cfg(feature = "multiplex")]
 impl private::Sealed for Multiplex {}
+#[cfg(feature = "multiplex")]
 impl ServerMode for Multiplex {}
 
 #[async_trait]
