@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use tokio::net::TcpStream;
-use tower::{Service, ServiceExt};
-use tower_rpc::{serde_codec, Client, Codec};
+
+use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() {
@@ -15,8 +15,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        client.ready().await.unwrap();
-        i = client.call(i).await.unwrap();
+        i = client.call_ready(i).await.unwrap();
         println!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

@@ -4,9 +4,10 @@ use std::{
     task::{Context, Poll},
 };
 
+use async_trait::async_trait;
 use background_service::ServiceContext;
 use matchit::{Params, Router};
-use tower::Service;
+use tower::{Service, ServiceExt};
 
 use crate::Request;
 
@@ -108,21 +109,38 @@ impl<T> RouteMatch<T> {
     }
 }
 
-pub trait CallRoute<Request> {
-    type Future;
+#[async_trait]
+pub trait CallRoute<Request>: Service<RoutedRequest<Request>> {
     fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future;
+
+    async fn call_route_ready(
+        &mut self,
+        route: impl Into<String> + Send,
+        request: Request,
+    ) -> Result<Self::Response, Self::Error>;
 }
 
-impl<Request, T> CallRoute<Request> for T
+#[async_trait]
+impl<Request, S> CallRoute<Request> for S
 where
-    T: Service<RoutedRequest<Request>>,
+    Request: Send + 'static,
+    S::Future: Send,
+    S::Error: Send,
+    S: Service<RoutedRequest<Request>> + Send,
 {
-    type Future = <Self as Service<RoutedRequest<Request>>>::Future;
-
     fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future {
         self.call(RoutedRequest {
             route: route.into(),
             value: request,
         })
+    }
+
+    async fn call_route_ready(
+        &mut self,
+        route: impl Into<String> + Send,
+        request: Request,
+    ) -> Result<Self::Response, Self::Error> {
+        self.ready().await?;
+        self.call_route(route, request).await
     }
 }

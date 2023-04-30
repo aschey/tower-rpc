@@ -1,10 +1,7 @@
-use std::{convert::Infallible, future, time::Duration};
-
 use background_service::BackgroundServiceManager;
-
+use std::{convert::Infallible, future, time::Duration};
 use tokio_util::sync::CancellationToken;
-
-use tower::{service_fn, util::BoxService, ServiceExt};
+use tower::{service_fn, util::BoxService};
 use tower_rpc::{
     make_service_fn,
     transport::local::{self},
@@ -42,12 +39,12 @@ pub async fn main() {
 
     let mut i = 0;
     loop {
-        client.ready().await.unwrap();
-        i = client.call_route("/test1", i).await.unwrap();
+        i = client.call_route_ready("/test1", i).await.unwrap();
         println!("Pong {i}");
-        client.ready().await.unwrap();
-        i = client.call_route("/test2", i).await.unwrap();
+
+        i = client.call_route_ready("/test2", i).await.unwrap();
         println!("Pong {i}");
+
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

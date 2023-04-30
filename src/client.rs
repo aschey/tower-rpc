@@ -6,7 +6,7 @@ use tokio_tower::{
     multiplex::{self, MultiplexTransport, TagStore},
     pipeline,
 };
-use tower::{util::BoxService, ServiceBuilder};
+use tower::{util::BoxService, ServiceBuilder, ServiceExt};
 
 use crate::{rpc_service::DemultiplexService, Tagged};
 
@@ -48,11 +48,10 @@ where
             multiplex::Client::builder(MultiplexTransport::new(self.stream, SlabStore::default()))
                 .build();
 
-        BoxService::new(
-            ServiceBuilder::default()
-                .layer_fn(DemultiplexService::new)
-                .service(client),
-        )
+        ServiceBuilder::default()
+            .layer_fn(DemultiplexService::new)
+            .service(client)
+            .boxed()
     }
 }
 

@@ -14,11 +14,11 @@ use background_service::BackgroundServiceManager;
 use futures::Future;
 use tokio_util::sync::CancellationToken;
 
-use tower::{layer::layer_fn, BoxError, Service, ServiceBuilder, ServiceExt};
+use tower::{layer::layer_fn, BoxError, Service, ServiceBuilder};
 use tower_rpc::{
     make_service_fn,
     transport::local::{self},
-    Client, Request, Server,
+    Client, ReadyServiceExt, Request, Server,
 };
 use tracing::{info, metadata::LevelFilter, span, Level};
 use tracing_subscriber::{prelude::*, Registry};
@@ -69,8 +69,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        client.ready().await.unwrap();
-        i = client.call(i).await.unwrap();
+        i = client.call_ready(i).await.unwrap();
         info!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

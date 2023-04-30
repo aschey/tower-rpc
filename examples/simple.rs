@@ -33,8 +33,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        client.ready().await.unwrap();
-        i = client.call(i).await.unwrap();
+        i = client.ready().await.unwrap().call(i).await.unwrap();
         println!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

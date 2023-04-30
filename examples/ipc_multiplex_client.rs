@@ -1,12 +1,16 @@
 use std::time::Duration;
 
+use parity_tokio_ipc::Endpoint;
 use rand::{rngs::SmallRng, Rng, SeedableRng};
-use tower::{buffer::Buffer, Service, ServiceExt};
-use tower_rpc::{serde_codec, transport::ipc, Client, Codec, Tagged};
+use tower::buffer::Buffer;
+use tower_rpc::{
+    serde_codec, transport::ipc::get_socket_address, Client, Codec, ReadyServiceExt, Tagged,
+};
 
 #[tokio::main]
 pub async fn main() {
-    let client_transport = ipc::ClientStream::new("test");
+    let addr = get_socket_address("test", "");
+    let client_transport = Endpoint::connect(addr.clone()).await.unwrap();
     let client = Client::new(serde_codec::<Tagged<usize>, Tagged<usize>>(
         client_transport,
         Codec::Bincode,
@@ -18,8 +22,7 @@ pub async fn main() {
     loop {
         let mut client_ = client.clone();
         tokio::task::spawn(async move {
-            client_.ready().await.unwrap();
-            let res = client_.call(i).await.unwrap();
+            let res = client_.call_ready(i).await.unwrap();
             println!("Ping {i} Pong {res}");
         });
 

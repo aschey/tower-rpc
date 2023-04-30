@@ -10,10 +10,10 @@ use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
-use tower::{service_fn, BoxError, Service, ServiceExt};
+use tower::{service_fn, BoxError};
 use tower_rpc::{
     transport::local::{self},
-    Client, MakeHandler, Request, Server,
+    Client, MakeHandler, ReadyServiceExt, Request, Server,
 };
 
 #[tokio::main]
@@ -30,8 +30,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        client.ready().await.unwrap();
-        i = client.call(i).await.unwrap();
+        i = client.call_ready(i).await.unwrap();
         println!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

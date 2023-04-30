@@ -4,11 +4,10 @@ use background_service::BackgroundServiceManager;
 
 use tokio_util::sync::CancellationToken;
 
-use tower::{Service, ServiceExt};
 use tower_rpc::{
     channel,
     transport::local::{self},
-    Client, Server,
+    Client, ReadyServiceExt, Server,
 };
 
 #[tokio::main]
@@ -33,8 +32,7 @@ pub async fn main() {
     let mut i = 0;
 
     loop {
-        client.ready().await.unwrap();
-        client.call(i).await.unwrap();
+        client.call_ready(i).await.unwrap();
         i += 1;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
