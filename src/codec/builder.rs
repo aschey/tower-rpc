@@ -27,41 +27,6 @@ pub trait CodecBuilder: Send {
     ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr>;
 }
 
-#[cfg(feature = "serde-codec")]
-pub struct SerdeCodec<Req, Res> {
-    _phantom: PhantomData<(Req, Res)>,
-    codec: crate::Codec,
-}
-
-#[cfg(feature = "serde-codec")]
-impl<Req, Res> SerdeCodec<Req, Res> {
-    pub fn new(codec: crate::Codec) -> Self {
-        Self {
-            codec,
-            _phantom: Default::default(),
-        }
-    }
-}
-
-#[cfg(feature = "serde-codec")]
-impl<Req, Res> CodecBuilder for SerdeCodec<Req, Res>
-where
-    Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
-    Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
-{
-    type Req = Req;
-    type Res = Res;
-    type SinkErr = io::Error;
-    type StreamErr = io::Error;
-
-    fn build_codec(
-        &self,
-        incoming: Box<dyn AsyncReadWrite>,
-    ) -> CodecStream<Self::Req, Self::Res, Self::StreamErr, Self::SinkErr> {
-        crate::serde_codec(incoming, self.codec)
-    }
-}
-
 pub fn codec_builder_fn<F, Req, Res, StreamErr, SinkErr>(
     f: F,
 ) -> CodecBuilderFn<F, Req, Res, StreamErr, SinkErr>

@@ -11,7 +11,10 @@ use tokio_util::sync::CancellationToken;
 
 use tower::{service_fn, BoxError};
 use tower_rpc::{
-    transport::{ipc, CodecTransport},
+    transport::{
+        ipc::{self, OnConflict},
+        CodecTransport,
+    },
     Codec, MakeHandler, Request, SerdeCodec, Server,
 };
 
@@ -19,7 +22,8 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = ipc::create_endpoint("test");
+    let transport =
+        ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
 
     let server = Server::pipeline(
         CodecTransport::new(

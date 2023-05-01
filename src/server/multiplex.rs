@@ -1,5 +1,5 @@
 use crate::{
-    rpc_service::{MultiplexService, RequestService},
+    service::{MultiplexService, RequestService},
     Multiplex, Request, Server, Tagged,
 };
 use async_trait::async_trait;

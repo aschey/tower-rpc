@@ -1,4 +1,4 @@
-use crate::{rpc_service::RequestService, Pipeline, Request, ServerMode};
+use crate::{service::RequestService, Pipeline, Request, ServerMode};
 use async_trait::async_trait;
 use background_service::{error::BoxedError, BackgroundService, ServiceContext};
 use futures::{Sink, Stream, TryStream};

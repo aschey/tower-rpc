@@ -2,12 +2,18 @@ use async_trait::async_trait;
 
 mod codec;
 pub use codec::*;
+#[cfg(feature = "server")]
 mod request_handler;
+#[cfg(feature = "server")]
 pub use request_handler::*;
-mod rpc_service;
+#[cfg(feature = "server")]
 mod server;
+mod service;
+#[cfg(feature = "server")]
 pub use server::*;
+#[cfg(feature = "client")]
 mod client;
+#[cfg(feature = "client")]
 pub use client::*;
 #[cfg(feature = "multiplex")]
 mod tagged;

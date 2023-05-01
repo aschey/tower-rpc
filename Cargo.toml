@@ -33,9 +33,24 @@ tracing-subscriber = "0.3.17"
 tracing-tree2 = {path = "../tracing-tree"}
 
 [features]
+all = [
+  "bincode",
+  "cbor",
+  "client",
+  "ipc",
+  "json",
+  "messagepack",
+  "multiplex",
+  "router",
+  "serde-codec",
+  "server",
+  "stdio",
+  "tcp",
+]
 bincode = ["serde-codec", "tokio-serde/bincode"]
 cbor = ["serde-codec", "tokio-serde/cbor"]
-default = ["bincode", "json", "ipc", "tcp", "local", "stdio", "router", "serde-codec", "multiplex"]
+client = []
+default = []
 ipc = ["parity-tokio-ipc"]
 json = ["serde-codec", "tokio-serde/json"]
 local = []
@@ -43,22 +58,79 @@ messagepack = ["serde-codec", "tokio-serde/messagepack"]
 multiplex = ["slab"]
 router = ["matchit"]
 serde-codec = ["serde", "tokio-serde"]
+server = []
 stdio = ["tokio/process"]
 tcp = ["tokio/net"]
 
 [[example]]
-name = "ipc_server"
-required-features = ["ipc"]
+name = "bytes_client"
+required-features = ["ipc", "client"]
+
+[[example]]
+name = "bytes_server"
+required-features = ["ipc", "server"]
+
+[[example]]
+name = "channel"
+required-features = ["local", "client", "server"]
+
 [[example]]
 name = "ipc_client"
-required-features = ["ipc"]
+required-features = ["ipc", "client", "bincode"]
+
 [[example]]
-name = "ipc_multiplex_server"
-required-features = ["ipc"]
+name = "ipc_server"
+required-features = ["ipc", "server", "bincode"]
+
 [[example]]
 name = "ipc_multiplex_client"
-required-features = ["ipc"]
+required-features = ["ipc", "client", "multiplex", "bincode"]
+
+[[example]]
+name = "ipc_multiplex_server"
+required-features = ["ipc", "server", "multiplex", "bincode"]
+
+[[example]]
+name = "local"
+required-features = ["local", "client", "server"]
+
+[[example]]
+name = "reconnect_client"
+required-features = ["tcp", "client", "bincode"]
+
+[[example]]
+name = "request_loop"
+required-features = ["local", "client", "server"]
+
+[[example]]
+name = "routing"
+required-features = ["local", "client", "server", "router"]
+
+[[example]]
+name = "simple"
+required-features = ["local", "client", "server"]
+
+[[example]]
+name = "stdio_client"
+required-features = ["stdio", "client"]
+
+[[example]]
+name = "stdio_server"
+required-features = ["stdio", "server"]
+
+[[example]]
+name = "tcp_client"
+required-features = ["tcp", "client"]
+
+[[example]]
+name = "tcp_server"
+required-features = ["tcp", "server"]
+
+[[example]]
+name = "tracing"
+required-features = ["local", "client", "server"]
 
 [[bench]]
 harness = false
 name = "rpc"
+required-features = ["all"]

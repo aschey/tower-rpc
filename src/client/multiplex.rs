@@ -1,4 +1,4 @@
-use crate::{rpc_service::DemultiplexService, Client, ClientError, Tagged};
+use crate::{service::DemultiplexService, Client, ClientError, Tagged};
 use futures::{Sink, TryStream};
 use std::{fmt::Debug, marker::PhantomData, pin::Pin};
 use tokio_tower::multiplex::{self, MultiplexTransport, TagStore};

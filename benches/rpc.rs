@@ -14,7 +14,7 @@ use tower::{service_fn, BoxError};
 use tower_rpc::{
     serde_codec,
     transport::{
-        ipc,
+        ipc::{self, OnConflict},
         tcp::{TcpStream, TcpTransport},
         CodecTransport,
     },
@@ -37,7 +37,8 @@ pub fn bench_calls(c: &mut Criterion) {
     let manager = BackgroundServiceManager::new(cancellation_token);
     let mut context = manager.get_context();
     rt.block_on(async {
-        let transport = ipc::create_endpoint("test");
+        let transport =
+            ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
 
         let server = Server::pipeline(
             CodecTransport::new(
