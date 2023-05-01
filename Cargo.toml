@@ -61,4 +61,4 @@ required-features = ["ipc"]
 
 [[bench]]
 harness = false
-name = "ipc"
+name = "rpc"

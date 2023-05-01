@@ -51,11 +51,12 @@ where
                             .layer_fn(MultiplexService::new)
                             .layer_fn(|inner| RequestService::new(context.clone(), inner))
                             .service(handler);
-                        multiplex::Server::new(stream, service)
+                        if let Ok(res) = multiplex::Server::new(stream, service)
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
-                            .unwrap()
-                            .unwrap();
+                        {
+                            return Ok(res.map_err(|e| format!("{e:?}"))?);
+                        }
 
                         Ok(())
                     },

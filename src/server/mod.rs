@@ -31,7 +31,7 @@ where
     K::MakeError: Debug,
     H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
     H::Future: Send + 'static,
-    H::Error: Send + Debug,
+    H::Error: Debug + Send,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Req> + Sink<Res> + Send + 'static,
     <I as TryStream>::Error: Debug,
@@ -64,11 +64,12 @@ where
                         let service = ServiceBuilder::default()
                             .layer_fn(|inner| RequestService::new(context.clone(), inner))
                             .service(handler);
-                        pipeline::Server::new(stream, service)
+                        if let Ok(res) = pipeline::Server::new(stream, service)
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
-                            .unwrap()
-                            .unwrap();
+                        {
+                            return Ok(res.map_err(|e| format!("{e:?}"))?);
+                        }
 
                         Ok(())
                     },
@@ -87,11 +88,11 @@ where
     K::Future: Send,
     H: tower::Service<Request<Req>, Response = Res> + Send + 'static,
     H::Future: Send + 'static,
-    H::Error: Send + Debug,
+    H::Error: Debug + Send,
     S: Stream<Item = Result<I, E>> + Send,
     I: TryStream<Ok = Req> + Sink<Res> + Send + 'static,
-    <I as futures::TryStream>::Error: Debug,
-    <I as futures::Sink<Res>>::Error: Debug,
+    <I as TryStream>::Error: Debug,
+    <I as Sink<Res>>::Error: Debug,
     E: Send,
     Req: Send + Sync + 'static,
     Res: Send + Sync + 'static,

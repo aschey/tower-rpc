@@ -1,5 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::{task::Poll, time::Instant};
+use std::{
+    task::Poll,
+    time::{Duration, Instant},
+};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
@@ -20,7 +23,16 @@ use tower_rpc::{
 
 pub fn bench_calls(c: &mut Criterion) {
     let mut group = c.benchmark_group("calls");
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    group
+        .measurement_time(Duration::from_secs(20))
+        .sample_size(1000);
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(4)
+        .build()
+        .unwrap();
+
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token);
     let mut context = manager.get_context();
@@ -46,11 +58,15 @@ pub fn bench_calls(c: &mut Criterion) {
             ))
             .create_pipeline();
             let mut i = 0;
-            let start = Instant::now();
-            for _i in 0..iters {
-                i = black_box(client.call_ready(i).await.unwrap());
-            }
-            start.elapsed()
+            tokio::spawn(async move {
+                let start = Instant::now();
+                for _i in 0..iters {
+                    i = black_box(client.call_ready(i).await.unwrap());
+                }
+                start.elapsed()
+            })
+            .await
+            .unwrap()
         });
     });
 
@@ -83,13 +99,18 @@ pub fn bench_calls(c: &mut Criterion) {
             ))
             .create_pipeline();
             let mut i = 0;
-            let start = Instant::now();
-            for _i in 0..iters {
-                i = black_box(client.call_ready(i).await.unwrap());
-            }
-            start.elapsed()
+            tokio::spawn(async move {
+                let start = Instant::now();
+                for _i in 0..iters {
+                    i = black_box(client.call_ready(i).await.unwrap());
+                }
+                start.elapsed()
+            })
+            .await
+            .unwrap()
         });
     });
+    group.finish();
 
     rt.block_on(async {
         manager.cancel().await.unwrap();
