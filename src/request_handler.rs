@@ -162,7 +162,7 @@ pub struct RequestHandlerStream<Req, Res> {
 
 impl<Req, Res> tower::Service<Request<Req>> for RequestHandlerStream<Req, Res>
 where
-    Req: Send + Sync + Debug,
+    Req: Send + Sync + Debug + 'static,
     Res: Send + Sync + Debug + 'static,
 {
     type Error = BoxError;
@@ -179,13 +179,10 @@ where
     fn call(&mut self, req: Request<Req>) -> Self::Future {
         let (tx, rx) = oneshot::channel();
         let cancellation_token = req.context.cancellation_token();
-        self.request_tx.send((req, Responder(tx))).unwrap();
+        let res = self.request_tx.send((req, Responder(tx)));
         Box::pin(async move {
-            Ok(rx
-                .cancel_on_shutdown(&cancellation_token)
-                .await
-                .unwrap()
-                .unwrap())
+            res?;
+            Ok(rx.cancel_on_shutdown(&cancellation_token).await??)
         })
     }
 }

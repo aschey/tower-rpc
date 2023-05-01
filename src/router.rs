@@ -1,13 +1,17 @@
 use std::{
     collections::VecDeque,
+    fmt::Debug,
+    future,
     marker::PhantomData,
+    pin::Pin,
     task::{Context, Poll},
 };
 
 use async_trait::async_trait;
 use background_service::ServiceContext;
-use matchit::{Params, Router};
-use tower::{Service, ServiceExt};
+use futures::Future;
+use matchit::{InsertError, MatchError, Params, Router};
+use tower::{BoxError, Service, ServiceExt};
 
 use crate::Request;
 
@@ -41,22 +45,25 @@ impl<Req, S> RouteService<Req, S>
 where
     S: Service<RouteMatch<Req>>,
 {
-    pub fn with_route(mut self, route: impl Into<String>, service: S) -> Self {
-        self.router.insert(route, self.route_index).unwrap();
+    pub fn with_route(mut self, route: impl Into<String>, service: S) -> Result<Self, InsertError> {
+        self.router.insert(route, self.route_index)?;
         self.services.push(service);
         self.not_ready.push_back(self.route_index);
         self.route_index += 1;
-        self
+        Ok(self)
     }
 }
 
 impl<Req, S> Service<Request<RoutedRequest<Req>>> for RouteService<Req, S>
 where
     S: Service<RouteMatch<Req>>,
+    S::Error: Debug,
+    S::Future: Send + 'static,
+    S::Response: Send + 'static,
 {
-    type Error = S::Error;
+    type Error = BoxError;
     type Response = S::Response;
-    type Future = S::Future;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         loop {
@@ -66,7 +73,8 @@ where
                 return Poll::Ready(Ok(()));
             } else {
                 if self.services[self.not_ready[0]]
-                    .poll_ready(cx)?
+                    .poll_ready(cx)
+                    .map_err(|e| format!("{e:?}"))?
                     .is_pending()
                 {
                     return Poll::Pending;
@@ -78,14 +86,23 @@ where
     }
 
     fn call(&mut self, req: Request<RoutedRequest<Req>>) -> Self::Future {
-        let svc_index = self.router.at(&req.value.route).unwrap();
+        let svc_index = match self.router.at(&req.value.route) {
+            Ok(index) => index,
+            Err(e) => {
+                return Box::pin(future::ready(Err(e.into())));
+            }
+        };
 
         self.not_ready.push_back(*svc_index.value);
-        self.services[*svc_index.value].call(RouteMatch {
+        let inner_rs = self.services[*svc_index.value].call(RouteMatch {
             context: req.context,
             route: req.value.route,
             router: self.router.clone(),
             value: req.value.value,
+        });
+        Box::pin(async move {
+            let res = inner_rs.await;
+            Ok(res.map_err(|e| format!("{e:?}"))?)
         })
     }
 }
@@ -104,8 +121,8 @@ pub struct RouteMatch<T> {
 }
 
 impl<T> RouteMatch<T> {
-    pub fn params(&self) -> Params {
-        self.router.at(&self.route).unwrap().params
+    pub fn params(&self) -> Result<Params, MatchError> {
+        Ok(self.router.at(&self.route)?.params)
     }
 }
 

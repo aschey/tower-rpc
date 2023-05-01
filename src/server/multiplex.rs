@@ -34,7 +34,7 @@ where
         }
     }
 
-    async fn run_multiplex(mut self, mut context: ServiceContext) {
+    async fn run_multiplex(mut self, mut context: ServiceContext) -> Result<(), BoxedError> {
         let incoming = self.incoming;
         futures::pin_mut!(incoming);
         while let Ok(Some(Ok(stream))) = incoming
@@ -42,7 +42,11 @@ where
             .cancel_on_shutdown(&context.cancellation_token())
             .await
         {
-            let handler = self.handler.make_service(()).await.unwrap();
+            let handler = self
+                .handler
+                .make_service(())
+                .await
+                .map_err(|e| format!("{e:?}"))?;
             context
                 .add_service((
                     "ipc_handler".to_owned(),
@@ -61,9 +65,9 @@ where
                         Ok(())
                     },
                 ))
-                .await
-                .unwrap();
+                .await?
         }
+        Ok(())
     }
 }
 
@@ -88,7 +92,6 @@ where
         "ipc_server"
     }
     async fn run(self, context: ServiceContext) -> Result<(), BoxedError> {
-        self.run_multiplex(context).await;
-        Ok(())
+        self.run_multiplex(context).await
     }
 }
