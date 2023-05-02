@@ -7,6 +7,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use tokio_stream::StreamExt;
 use tokio_tower::pipeline;
 use tower::{MakeService, ServiceBuilder};
+use tracing::info;
 
 #[cfg(feature = "multiplex")]
 mod multiplex;
@@ -72,7 +73,15 @@ where
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
                         {
-                            return Ok(res.map_err(|e| format!("{e:?}"))?);
+                            return match res {
+                                Ok(()) => Ok(()),
+                                Err(pipeline::server::Error::Service(e)) => Err(format!("{e:?}"))?,
+                                Err(e) => {
+                                    // Transport errors can happen if the client disconnects so they may be expected
+                                    info!("Transport failure: {e:?}");
+                                    Ok(())
+                                }
+                            };
                         }
 
                         Ok(())

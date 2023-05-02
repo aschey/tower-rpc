@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use tokio_stream::StreamExt;
 use tokio_tower::multiplex;
 use tower::{MakeService, ServiceBuilder};
+use tracing::info;
 
 impl<K, H, S, I, E, Req, Res> Server<K, H, S, I, E, Multiplex, Req, Res>
 where
@@ -59,7 +60,15 @@ where
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
                         {
-                            return Ok(res.map_err(|e| format!("{e:?}"))?);
+                            return match res {
+                                Ok(()) => Ok(()),
+                                Err(multiplex::server::Error::Service(e)) => Err(format!("{e:?}"))?,
+                                Err(e) => {
+                                    // Transport errors can happen if the client disconnects so they may be expected
+                                    info!("Transport failure: {e:?}");
+                                    Ok(())
+                                }
+                            };
                         }
 
                         Ok(())
