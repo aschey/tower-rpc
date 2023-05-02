@@ -30,23 +30,10 @@ rand = {version = "0.8.5", features = ["small_rng"]}
 tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros", "time", "process", "net"]}
 tower = {version = "0.4", features = ["make", "util", "buffer", "steer", "reconnect"]}
 tracing-subscriber = "0.3.17"
-tracing-tree2 = {path = "../tracing-tree"}
+tracing-tree = "0.2.3"
 
 [features]
-all = [
-  "bincode",
-  "cbor",
-  "client",
-  "ipc",
-  "json",
-  "messagepack",
-  "multiplex",
-  "router",
-  "serde-codec",
-  "server",
-  "stdio",
-  "tcp",
-]
+all = ["bincode", "cbor", "client", "ipc", "json", "messagepack", "multiplex", "router", "serde-codec", "server", "stdio", "tcp"]
 bincode = ["serde-codec", "tokio-serde/bincode"]
 cbor = ["serde-codec", "tokio-serde/cbor"]
 client = []

@@ -22,7 +22,7 @@ use tower_rpc::{
 };
 use tracing::{info, metadata::LevelFilter, span, Level};
 use tracing_subscriber::{prelude::*, Registry};
-use tracing_tree2::HierarchicalLayer;
+use tracing_tree::HierarchicalLayer;
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
