@@ -17,11 +17,11 @@ pub async fn main() -> Result<(), BoxError> {
     let server = Server::pipeline(
         transport,
         make_service_fn(|| {
-            let svc1 = BoxService::new(service_fn(|req: RouteMatch<usize>| {
+            let svc1 = BoxService::new(service_fn(|req: RouteMatch<_>| {
                 println!("Ping1 {}", req.value);
                 future::ready(Ok::<_, Infallible>(req.value + 1))
             }));
-            let svc2 = BoxService::new(service_fn(|req: RouteMatch<usize>| {
+            let svc2 = BoxService::new(service_fn(|req: RouteMatch<_>| {
                 println!("Ping2 {}", req.value);
                 future::ready(Ok::<_, Infallible>(req.value + 1))
             }));

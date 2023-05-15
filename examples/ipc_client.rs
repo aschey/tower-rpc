@@ -3,17 +3,16 @@ use tower::BoxError;
 use tower_rpc::{
     serde_codec,
     transport::ipc::{self},
-    Client, Codec, ReadyServiceExt,
+    Client, Codec, ReadyServiceExt, SerdeCodec,
 };
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let client_transport = ipc::connect("test").await?;
-    let mut client = Client::new(serde_codec::<usize, usize>(
-        client_transport,
-        Codec::Bincode,
-    ))
-    .create_pipeline();
+
+    let mut client =
+        Client::new(SerdeCodec::<usize, usize>::new(Codec::Bincode).client(client_transport))
+            .create_pipeline();
     let mut i = 0;
     loop {
         i = client.call_ready(i).await?;

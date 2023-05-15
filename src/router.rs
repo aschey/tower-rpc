@@ -1,7 +1,8 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     fmt::Debug,
     future,
+    hash::Hash,
     marker::PhantomData,
     pin::Pin,
     task::{Context, Poll},
@@ -15,12 +16,43 @@ use tower::{BoxError, Service, ServiceExt};
 
 use crate::Request;
 
-pub struct RouteService<Req, S>
+pub trait RouteKey {
+    type Key;
+}
+
+#[derive(Debug)]
+pub struct Unkeyed;
+impl RouteKey for Unkeyed {
+    type Key = ();
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct Keyed<T>(pub T);
+
+impl<T> RouteKey for Keyed<T> {
+    type Key = T;
+}
+
+#[cfg(feature = "serde-codec")]
+pub fn routed_codec<Req, Res>(
+    codec: crate::Codec,
+) -> crate::SerdeCodec<RoutedRequest<Req, Unkeyed>, Res> {
+    crate::SerdeCodec::<RoutedRequest<Req, Unkeyed>, Res>::new(codec)
+}
+
+#[cfg(feature = "serde-codec")]
+pub fn keyed_codec<Req, Res, K>(
+    codec: crate::Codec,
+) -> crate::SerdeCodec<RoutedRequest<Req, Keyed<K>>, Res> {
+    crate::SerdeCodec::<RoutedRequest<Req, Keyed<K>>, Res>::new(codec)
+}
+
+pub struct RouteService<Req, S, K = Unkeyed>
 where
-    S: Service<RouteMatch<Req>>,
+    K: RouteKey,
 {
     services: Vec<S>,
-    router: Router<usize>,
+    routers: HashMap<K::Key, Router<usize>>,
     route_index: usize,
     not_ready: VecDeque<usize>,
     _phantom: PhantomData<Req>,
@@ -28,12 +60,14 @@ where
 
 impl<Req, S> Default for RouteService<Req, S>
 where
-    S: Service<RouteMatch<Req>>,
+    S: Service<RouteMatch<Req, Unkeyed>>,
 {
     fn default() -> Self {
+        let mut routers = HashMap::<_, _>::default();
+        routers.insert((), Default::default());
         Self {
             services: Default::default(),
-            router: Default::default(),
+            routers,
             route_index: 0,
             not_ready: Default::default(),
             _phantom: Default::default(),
@@ -41,12 +75,12 @@ where
     }
 }
 
-impl<Req, S> RouteService<Req, S>
-where
-    S: Service<RouteMatch<Req>>,
-{
+impl<Req, S> RouteService<Req, S> {
     pub fn with_route(mut self, route: impl Into<String>, service: S) -> Result<Self, InsertError> {
-        self.router.insert(route, self.route_index)?;
+        self.routers
+            .get_mut(&())
+            .unwrap()
+            .insert(route, self.route_index)?;
         self.services.push(service);
         self.not_ready.push_back(self.route_index);
         self.route_index += 1;
@@ -54,12 +88,54 @@ where
     }
 }
 
-impl<Req, S> Service<Request<RoutedRequest<Req>>> for RouteService<Req, S>
+impl<Req, S, K> RouteService<Req, S, Keyed<K>>
 where
-    S: Service<RouteMatch<Req>>,
+    K: Hash + Eq + PartialEq,
+{
+    pub fn with_keys() -> Self {
+        let routers = HashMap::<_, _>::default();
+
+        Self {
+            services: Default::default(),
+            routers,
+            route_index: 0,
+            not_ready: Default::default(),
+            _phantom: Default::default(),
+        }
+    }
+
+    pub fn with_route(
+        mut self,
+        key: impl Into<K>,
+        route: impl Into<String>,
+        service: S,
+    ) -> Result<Self, InsertError> {
+        let key = key.into();
+        match self.routers.get_mut(&key) {
+            Some(router) => {
+                router.insert(route, self.route_index)?;
+            }
+            None => {
+                let mut router = Router::default();
+                router.insert(route, self.route_index)?;
+                self.routers.insert(key, router);
+            }
+        }
+        self.services.push(service);
+        self.not_ready.push_back(self.route_index);
+        self.route_index += 1;
+        Ok(self)
+    }
+}
+
+impl<Req, S, K> Service<Request<RoutedRequest<Req, K>>> for RouteService<Req, S, K>
+where
+    S: Service<RouteMatch<Req, K>>,
     S::Error: Debug,
     S::Future: Send + 'static,
     S::Response: Send + 'static,
+    K: RouteKey,
+    K::Key: Hash + PartialEq + Eq,
 {
     type Error = BoxError;
     type Response = S::Response;
@@ -85,8 +161,14 @@ where
         }
     }
 
-    fn call(&mut self, req: Request<RoutedRequest<Req>>) -> Self::Future {
-        let svc_index = match self.router.at(&req.value.route) {
+    fn call(&mut self, req: Request<RoutedRequest<Req, K>>) -> Self::Future {
+        let router = match self.routers.get(&req.value.key) {
+            Some(router) => router,
+            None => {
+                return Box::pin(future::ready(Err("No router found".into())));
+            }
+        };
+        let svc_index = match router.at(&req.value.route) {
             Ok(index) => index,
             Err(e) => {
                 return Box::pin(future::ready(Err(e.into())));
@@ -97,7 +179,8 @@ where
         let inner_rs = self.services[*svc_index.value].call(RouteMatch {
             context: req.context,
             route: req.value.route,
-            router: self.router.clone(),
+            key: req.value.key,
+            router: router.clone(),
             value: req.value.value,
         });
         Box::pin(async move {
@@ -107,31 +190,51 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct RoutedRequest<T> {
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde-codec", derive(serde::Serialize, serde::Deserialize))]
+pub struct RoutedRequest<T, K: RouteKey> {
     pub route: String,
+    pub key: K::Key,
     pub value: T,
 }
 
-pub struct RouteMatch<T> {
+pub struct RouteMatch<T, K: RouteKey = Unkeyed> {
     pub context: ServiceContext,
     pub route: String,
+    pub key: K::Key,
     pub value: T,
     router: Router<usize>,
 }
 
-impl<T> RouteMatch<T> {
+impl<T, K: RouteKey> RouteMatch<T, K> {
     pub fn params(&self) -> Result<Params, MatchError> {
         Ok(self.router.at(&self.route)?.params)
     }
 }
 
 #[async_trait]
-pub trait CallRoute<Request>: Service<RoutedRequest<Request>> {
+pub trait CallRoute<Request>: Service<RoutedRequest<Request, Unkeyed>> {
     fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future;
 
     async fn call_route_ready(
         &mut self,
+        route: impl Into<String> + Send,
+        request: Request,
+    ) -> Result<Self::Response, Self::Error>;
+}
+
+#[async_trait]
+pub trait CallKeyedRoute<Request, K>: Service<RoutedRequest<Request, Keyed<K>>> {
+    fn call_route(
+        &mut self,
+        key: impl Into<K>,
+        route: impl Into<String>,
+        request: Request,
+    ) -> Self::Future;
+
+    async fn call_route_ready(
+        &mut self,
+        key: impl Into<K> + Send,
         route: impl Into<String> + Send,
         request: Request,
     ) -> Result<Self::Response, Self::Error>;
@@ -143,11 +246,12 @@ where
     Request: Send + 'static,
     S::Future: Send,
     S::Error: Send,
-    S: Service<RoutedRequest<Request>> + Send,
+    S: Service<RoutedRequest<Request, Unkeyed>> + Send,
 {
     fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future {
         self.call(RoutedRequest {
             route: route.into(),
+            key: (),
             value: request,
         })
     }
@@ -159,5 +263,38 @@ where
     ) -> Result<Self::Response, Self::Error> {
         self.ready().await?;
         self.call_route(route, request).await
+    }
+}
+
+#[async_trait]
+impl<Request, S, K> CallKeyedRoute<Request, K> for S
+where
+    Request: Send + 'static,
+    S::Future: Send,
+    S::Error: Send,
+    S: Service<RoutedRequest<Request, Keyed<K>>> + Send,
+    K: Send + 'static,
+{
+    fn call_route(
+        &mut self,
+        key: impl Into<K>,
+        route: impl Into<String>,
+        request: Request,
+    ) -> Self::Future {
+        self.call(RoutedRequest {
+            route: route.into(),
+            key: key.into(),
+            value: request,
+        })
+    }
+
+    async fn call_route_ready(
+        &mut self,
+        key: impl Into<K> + Send,
+        route: impl Into<String> + Send,
+        request: Request,
+    ) -> Result<Self::Response, Self::Error> {
+        self.ready().await?;
+        self.call_route(key, route, request).await
     }
 }

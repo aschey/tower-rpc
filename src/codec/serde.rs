@@ -21,6 +21,7 @@ where
     Box::new(stream)
 }
 
+#[derive(Clone, Debug)]
 pub struct SerdeCodec<Req, Res> {
     _phantom: PhantomData<(Req, Res)>,
     codec: crate::Codec,
@@ -32,6 +33,17 @@ impl<Req, Res> SerdeCodec<Req, Res> {
             codec,
             _phantom: Default::default(),
         }
+    }
+
+    pub fn client(
+        &self,
+        incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    ) -> CodecStream<Res, Req, io::Error, io::Error>
+    where
+        Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+        Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+    {
+        serde_codec(incoming, self.codec)
     }
 }
 

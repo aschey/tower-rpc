@@ -5,35 +5,65 @@ version = "0.1.0"
 
 [dependencies]
 async-trait = "0.1"
-background-service = {git = "https://github.com/aschey/background-service-rs", rev = "0d0fc38608bf0443dd9d1ff162f97431248018e3"}
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "0d0fc38608bf0443dd9d1ff162f97431248018e3" }
 bytes = "1"
 futures = "0.3"
-futures-cancel = {git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d"}
-matchit = {version = "0.7.0", optional = true}
-parity-tokio-ipc = {version = "0.9", optional = true}
+futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d" }
+matchit = { version = "0.7.0", optional = true }
+parity-tokio-ipc = { version = "0.9", optional = true }
 pin-project = "1"
-serde = {version = "1", features = ["derive"], optional = true}
-slab = {version = "0.4", optional = true}
+serde = { version = "1", features = ["derive"], optional = true }
+slab = { version = "0.4", optional = true }
 thiserror = "1"
-tokio = {version = "1", features = ["sync"]}
-tokio-serde = {version = "0.8", optional = true}
-tokio-stream = {version = "0.1", features = ["sync"]}
+tokio = { version = "1", features = ["sync"] }
+tokio-serde = { version = "0.8", optional = true }
+tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-tower = "0.7.0-rc4"
-tokio-util = {version = "0.7", features = ["codec"]}
-tower = {version = "0.4", features = ["make", "util"]}
+tokio-util = { version = "0.7", features = ["codec"] }
+tower = { version = "0.4", features = ["make", "util"] }
 tracing = "0.1"
 
 [dev-dependencies]
-background-service = {git = "https://github.com/aschey/background-service-rs", rev = "0d0fc38608bf0443dd9d1ff162f97431248018e3", features = ["signal"]}
-criterion = {version = "0.4.0", features = ["async_tokio", "html_reports"]}
-rand = {version = "0.8.5", features = ["small_rng"]}
-tokio = {version = "1.27.0", features = ["rt-multi-thread", "macros", "time", "process", "net"]}
-tower = {version = "0.4", features = ["make", "util", "buffer", "steer", "reconnect"]}
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "0d0fc38608bf0443dd9d1ff162f97431248018e3", features = [
+    "signal",
+] }
+criterion = { version = "0.4.0", features = ["async_tokio", "html_reports"] }
+http = "0.2.9"
+http-serde = "1.1.2"
+rand = { version = "0.8.5", features = ["small_rng"] }
+tokio = { version = "1.27.0", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "process",
+    "net",
+] }
+tower = { version = "0.4", features = [
+    "make",
+    "util",
+    "buffer",
+    "steer",
+    "reconnect",
+] }
 tracing-subscriber = "0.3.17"
 tracing-tree = "0.2.3"
 
 [features]
-all = ["bincode", "cbor", "client", "ipc", "json", "messagepack", "multiplex", "router", "serde-codec", "server", "stdio", "tcp"]
+all = [
+    "bincode",
+    "cbor",
+    "client",
+    "ipc",
+    "json",
+    "messagepack",
+    "multiplex",
+    "router",
+    "serde-codec",
+    "server",
+    "stdio",
+    "tcp",
+    "local",
+]
 bincode = ["serde-codec", "tokio-serde/bincode"]
 cbor = ["serde-codec", "tokio-serde/cbor"]
 client = []
@@ -92,6 +122,10 @@ required-features = ["local", "client", "server"]
 [[example]]
 name = "routing"
 required-features = ["local", "client", "server", "router"]
+
+[[example]]
+name = "http_over_ipc"
+required-features = ["ipc", "client", "server", "router", "bincode"]
 
 [[example]]
 name = "simple"
