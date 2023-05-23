@@ -1,8 +1,7 @@
+use crate::AsyncReadWrite;
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, Stream};
-
 use std::{error::Error, io, marker::PhantomData};
-use tokio::io::{AsyncRead, AsyncWrite};
 
 pub trait StreamSink<SinkItem>: Stream + Sink<SinkItem> + Unpin + Send {}
 
@@ -10,10 +9,6 @@ impl<T, SinkItem> StreamSink<SinkItem> for T where T: Stream + Sink<SinkItem> + 
 
 pub type CodecStream<Req, Res, StreamErr, SinkErr> =
     Box<dyn StreamSink<Res, Item = Result<Req, StreamErr>, Error = SinkErr>>;
-
-pub trait AsyncReadWrite: AsyncRead + AsyncWrite + Send + Unpin + 'static {}
-
-impl<T> AsyncReadWrite for T where T: AsyncRead + AsyncWrite + Send + Unpin + 'static {}
 
 pub trait CodecBuilder: Send {
     type Req: Send;

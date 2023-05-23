@@ -1,7 +1,6 @@
 use std::time::Duration;
 use tower::BoxError;
 use tower_rpc::{
-    serde_codec,
     transport::ipc::{self},
     Client, Codec, ReadyServiceExt, SerdeCodec,
 };

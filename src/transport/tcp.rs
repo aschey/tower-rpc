@@ -1,6 +1,6 @@
 use futures::Stream;
 use pin_project::pin_project;
-use std::{net::SocketAddr, task::Poll};
+use std::{error::Error, net::SocketAddr, task::Poll};
 use tokio::{io, net::TcpListener};
 
 pub type TcpStream = tokio::net::TcpStream;
@@ -20,7 +20,7 @@ impl TcpTransport {
 }
 
 impl Stream for TcpTransport {
-    type Item = Result<TcpStream, Box<dyn std::error::Error + Send + Sync>>;
+    type Item = Result<TcpStream, io::Error>;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,

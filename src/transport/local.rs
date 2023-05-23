@@ -1,6 +1,7 @@
 use core::fmt::Debug;
 use futures::{Sink, Stream};
 use std::{
+    error::Error,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -13,7 +14,7 @@ pub struct LocalTransport<Req, Res> {
 }
 
 impl<Req: Debug, Res: Debug> Sink<Req> for LocalTransport<Req, Res> {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = Box<dyn Error + Send + Sync + 'static>;
 
     fn poll_ready(self: Pin<&mut Self>, _cx: &mut Context) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -34,7 +35,7 @@ impl<Req: Debug, Res: Debug> Sink<Req> for LocalTransport<Req, Res> {
 }
 
 impl<Req, Res> Stream for LocalTransport<Req, Res> {
-    type Item = Result<Res, Box<dyn std::error::Error + Send + Sync + 'static>>;
+    type Item = Result<Res, Box<dyn Error + Send + Sync + 'static>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         self.rx.poll_recv(cx).map(|s| s.map(Ok))
@@ -46,8 +47,7 @@ pub struct LocalTransportFactory<Req, Res> {
 }
 
 impl<Req, Res> Stream for LocalTransportFactory<Req, Res> {
-    type Item =
-        Result<LocalTransport<Req, Res>, Box<dyn std::error::Error + Send + Sync + 'static>>;
+    type Item = Result<LocalTransport<Req, Res>, Box<dyn Error + Send + Sync + 'static>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.rx.poll_recv(cx).map(|s| s.map(Ok))
