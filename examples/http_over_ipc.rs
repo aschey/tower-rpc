@@ -3,7 +3,7 @@ use http::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use std::{convert::Infallible, future, time::Duration};
 use tokio_util::sync::CancellationToken;
-use tower::{service_fn, util::BoxService, BoxError};
+use tower::{service_fn, BoxError, ServiceExt};
 use tower_rpc::{
     keyed_codec, make_service_fn,
     transport::{
@@ -43,20 +43,22 @@ pub async fn main() -> Result<(), BoxError> {
     let server = Server::pipeline(
         transport,
         make_service_fn(|| {
-            let svc1 = BoxService::new(service_fn(|req: RouteMatch<_, _>| {
+            let svc1 = service_fn(|req: RouteMatch<_, _>| {
                 println!("Ping1 {}", req.value);
                 future::ready(Ok::<_, Infallible>(HttpResponse {
                     status: StatusCode::OK,
                     value: req.value + 1,
                 }))
-            }));
-            let svc2 = BoxService::new(service_fn(|req: RouteMatch<_, _>| {
+            })
+            .boxed();
+            let svc2 = service_fn(|req: RouteMatch<_, _>| {
                 println!("Ping2 {}", req.value);
                 future::ready(Ok::<_, Infallible>(HttpResponse {
                     status: StatusCode::OK,
                     value: req.value + 1,
                 }))
-            }));
+            })
+            .boxed();
 
             RouteService::with_keys()
                 .with_route(Method::GET, "/test1", svc1)

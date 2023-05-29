@@ -50,7 +50,7 @@ where
                 .map_err(|e| format!("{e:?}"))?;
             context
                 .add_service((
-                    "ipc_handler".to_owned(),
+                    "rpc_handler".to_owned(),
                     move |context: ServiceContext| async move {
                         let service = ServiceBuilder::default()
                             .layer_fn(MultiplexService::new)
@@ -98,8 +98,9 @@ where
     Res: Send + Sync + 'static,
 {
     fn name(&self) -> &str {
-        "ipc_server"
+        "rpc_server"
     }
+
     async fn run(self, context: ServiceContext) -> Result<(), BoxedError> {
         self.run_multiplex(context).await
     }

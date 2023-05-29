@@ -13,7 +13,8 @@ use tokio_serde::formats::Json;
 use tokio_serde::formats::MessagePack;
 use tokio_serde::{Deserializer, Serializer};
 
-pub(crate) struct CodecSerializer<Item, SinkItem>
+#[derive(Clone, Debug)]
+pub struct CodecSerializer<Item, SinkItem>
 where
     SinkItem: Serialize + Unpin,
     Item: for<'de> Deserialize<'de> + Unpin,

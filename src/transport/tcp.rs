@@ -1,6 +1,6 @@
 use futures::Stream;
 use pin_project::pin_project;
-use std::{error::Error, net::SocketAddr, task::Poll};
+use std::{net::SocketAddr, task::Poll};
 use tokio::{io, net::TcpListener};
 
 pub type TcpStream = tokio::net::TcpStream;

@@ -25,7 +25,7 @@ pub fn get_socket_address(id: &str, suffix: &str) -> String {
 
 pub fn create_endpoint(
     app_id: impl AsRef<str>,
-    on_conflict: OnConflict,
+    _on_conflict: OnConflict,
 ) -> Result<Endpoint, io::Error> {
     let addr = get_socket_address(app_id.as_ref(), "");
     #[cfg(unix)]
@@ -45,7 +45,7 @@ pub fn create_endpoint(
             }
         }
     }
-    Ok(Endpoint::new(get_socket_address(app_id.as_ref(), "")))
+    Ok(Endpoint::new(addr))
 }
 
 pub async fn connect(app_id: impl AsRef<str>) -> io::Result<Connection> {

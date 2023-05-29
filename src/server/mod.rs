@@ -14,6 +14,9 @@ mod multiplex;
 #[cfg(feature = "multiplex")]
 pub use multiplex::*;
 
+#[cfg(feature = "http")]
+pub mod http;
+
 pub struct Server<K, H, S, I, E, M, Req, Res>
 where
     K: MakeService<(), Request<Req>, Service = H>,
@@ -64,11 +67,12 @@ where
                 .map_err(|e| format!("{e:?}"))?;
             context
                 .add_service((
-                    "ipc_handler".to_owned(),
+                    "rpc_handler".to_owned(),
                     move |context: ServiceContext| async move {
                         let service = ServiceBuilder::default()
                             .layer_fn(|inner| RequestService::new(context.clone(), inner))
                             .service(handler);
+
                         if let Ok(res) = pipeline::Server::new(stream, service)
                             .cancel_on_shutdown(&context.cancellation_token())
                             .await
@@ -112,8 +116,9 @@ where
     Res: Send + Sync + 'static,
 {
     fn name(&self) -> &str {
-        "ipc_server"
+        "rpc_server"
     }
+
     async fn run(mut self, context: ServiceContext) -> Result<(), BoxedError> {
         self.run_pipeline(context).await
     }

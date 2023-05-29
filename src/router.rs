@@ -47,6 +47,7 @@ pub fn keyed_codec<Req, Res, K>(
     crate::SerdeCodec::<RoutedRequest<Req, Keyed<K>>, Res>::new(codec)
 }
 
+#[derive(Clone)]
 pub struct RouteService<Req, S, K = Unkeyed>
 where
     K: RouteKey,

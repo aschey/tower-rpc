@@ -13,6 +13,8 @@ mod serde;
 pub use self::serde::*;
 #[cfg(feature = "serde-codec")]
 mod serializer;
+#[cfg(feature = "serde-codec")]
+pub use serializer::*;
 
 #[derive(Clone, Debug, Copy)]
 pub enum Codec {
