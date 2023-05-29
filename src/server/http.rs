@@ -117,19 +117,21 @@ where
     }
 }
 
-pub struct HttpAdapter<S, D, Req>
+pub struct HttpAdapter<S, D, M, Req>
 where
-    S: Service<Request<RoutedRequest<Req, Keyed<Method>>>> + Clone + Send,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send,
+    M: From<Method>,
 {
     inner: S,
-    _phantom: PhantomData<Req>,
+    _phantom: PhantomData<(M, Req)>,
     serializer: D,
     context: ServiceContext,
 }
 
-impl<S, D, Req> HttpAdapter<S, D, Req>
+impl<S, D, M, Req> HttpAdapter<S, D, M, Req>
 where
-    S: Service<Request<RoutedRequest<Req, Keyed<Method>>>> + Clone + Send,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send,
+    M: From<Method>,
 {
     pub fn new(inner: S, serializer: D, context: ServiceContext) -> Self {
         Self {
@@ -141,10 +143,10 @@ where
     }
 }
 
-impl<S, D, Req> Service<hyper::Request<hyper::body::Incoming>> for HttpAdapter<S, D, Req>
+impl<S, D, M, Req> Service<hyper::Request<hyper::body::Incoming>> for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
-    S: Service<Request<RoutedRequest<Req, Keyed<Method>>>> + Clone + Send + 'static,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send + 'static,
     S::Future: Send,
     S::Error: std::fmt::Debug,
     D: Serializer<S::Response>
@@ -156,6 +158,7 @@ where
         + 'static,
     <D as Serializer<S::Response>>::Error: std::fmt::Debug + Send + 'static,
     <D as Deserializer<Req>>::Error: std::fmt::Debug + Send + 'static,
+    M: From<Method> + Send,
 {
     type Error = BoxError;
     type Response = http::Response<Full<Bytes>>;
@@ -175,7 +178,7 @@ where
                     context,
                     value: RoutedRequest {
                         route: req.uri().to_string(),
-                        key: req.method().to_owned(),
+                        key: req.method().to_owned().into(),
                         value: Pin::new(&mut deser)
                             .deserialize(&BytesMut::from(
                                 req.into_body()
@@ -236,11 +239,11 @@ where
     }
 }
 
-impl<S, D, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>>
-    for HttpAdapter<S, D, Req>
+impl<S, D, M, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>>
+    for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
-    S: Service<Request<RoutedRequest<Req, Keyed<Method>>>> + Clone + Send + 'static,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send + 'static,
     S::Future: Send,
     S::Error: std::fmt::Debug,
     D: Serializer<S::Response>
@@ -252,6 +255,7 @@ where
         + 'static,
     <D as Serializer<S::Response>>::Error: std::fmt::Debug + Send + 'static,
     <D as Deserializer<Req>>::Error: std::fmt::Debug + Send + 'static,
+    M: From<Method> + Send,
 {
     type Response = http::Response<Full<Bytes>>;
     type Error = BoxError;
