@@ -1,13 +1,12 @@
 use std::time::Duration;
-use tokio::net::TcpStream;
 use tower::{reconnect::Reconnect, service_fn, util::BoxService, BoxError, ServiceExt};
-use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, transport::tcp, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() {
     let make_service = service_fn(move |_: ()| {
         Box::pin(async move {
-            let socket = TcpStream::connect("127.0.0.1:8080").await?;
+            let socket = tcp::connect("127.0.0.1:8080").await?;
             let client =
                 Client::new(serde_codec::<usize, usize>(socket, Codec::Bincode)).create_pipeline();
             Ok::<_, BoxError>(client.boxed())

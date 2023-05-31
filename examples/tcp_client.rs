@@ -1,10 +1,10 @@
 use std::time::Duration;
 use tower::BoxError;
-use tower_rpc::{serde_codec, transport::tcp::TcpStream, Client, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, transport::tcp, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
-    let client_transport = TcpStream::connect("127.0.0.1:8080").await?;
+    let client_transport = tcp::connect("127.0.0.1:8080").await?;
     let mut client = Client::new(serde_codec::<usize, usize>(
         client_transport,
         Codec::Bincode,

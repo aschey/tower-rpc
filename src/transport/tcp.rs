@@ -1,7 +1,10 @@
 use futures::Stream;
 use pin_project::pin_project;
 use std::{net::SocketAddr, task::Poll};
-use tokio::{io, net::TcpListener};
+use tokio::{
+    io,
+    net::{TcpListener, ToSocketAddrs},
+};
 
 pub type TcpStream = tokio::net::TcpStream;
 
@@ -36,4 +39,8 @@ impl Stream for TcpTransport {
             Poll::Pending => Poll::Pending,
         }
     }
+}
+
+pub async fn connect(addr: impl ToSocketAddrs) -> io::Result<TcpStream> {
+    TcpStream::connect(addr).await
 }

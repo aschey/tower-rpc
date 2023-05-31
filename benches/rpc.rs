@@ -15,8 +15,7 @@ use tower_rpc::{
     serde_codec,
     transport::{
         ipc::{self, OnConflict},
-        tcp::{self, TcpStream},
-        CodecTransport,
+        tcp, CodecTransport,
     },
     Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
 };
@@ -91,7 +90,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
 
     group.bench_function("tcp", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = TcpStream::connect("127.0.0.1:8080")
+            let client_transport = tcp::connect("127.0.0.1:8080")
                 .await
                 .expect("Failed to connect");
             let mut client = Client::new(serde_codec::<usize, usize>(
