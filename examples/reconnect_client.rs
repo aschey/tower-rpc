@@ -1,7 +1,7 @@
 use std::time::Duration;
 use tokio::net::TcpStream;
 use tower::{reconnect::Reconnect, service_fn, util::BoxService, BoxError, ServiceExt};
-use tower_rpc::{serde_codec, Client, ClientError, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() {
@@ -14,7 +14,7 @@ pub async fn main() {
         })
     });
 
-    let mut client = Reconnect::new::<BoxService<usize, usize, ClientError>, ()>(make_service, ());
+    let mut client = Reconnect::new::<BoxService<usize, usize, BoxError>, ()>(make_service, ());
     let mut i = 0;
     loop {
         i = match client.call_ready(i).await {

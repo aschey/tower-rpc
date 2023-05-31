@@ -5,12 +5,24 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::sync::mpsc::{self, error::SendError};
+use tokio::sync::mpsc::{self};
+
+#[derive(Debug)]
+enum Sender<T> {
+    Bounded(mpsc::Sender<T>),
+    Unbounded(mpsc::UnboundedSender<T>),
+}
+
+#[derive(Debug)]
+enum Receiver<T> {
+    Bounded(mpsc::Receiver<T>),
+    Unbounded(mpsc::UnboundedReceiver<T>),
+}
 
 #[derive(Debug)]
 pub struct LocalTransport<Req, Res> {
-    tx: mpsc::UnboundedSender<Req>,
-    rx: mpsc::UnboundedReceiver<Res>,
+    tx: Sender<Req>,
+    rx: Receiver<Res>,
 }
 
 impl<Req: Debug, Res: Debug> Sink<Req> for LocalTransport<Req, Res> {
@@ -21,7 +33,10 @@ impl<Req: Debug, Res: Debug> Sink<Req> for LocalTransport<Req, Res> {
     }
 
     fn start_send(self: Pin<&mut Self>, item: Req) -> Result<(), Self::Error> {
-        self.tx.send(item).map_err(|e| e.to_string())?;
+        match &self.tx {
+            Sender::Bounded(tx) => tx.try_send(item).map_err(|e| e.to_string())?,
+            Sender::Unbounded(tx) => tx.send(item).map_err(|e| e.to_string())?,
+        }
         Ok(())
     }
 
@@ -38,37 +53,98 @@ impl<Req, Res> Stream for LocalTransport<Req, Res> {
     type Item = Result<Res, Box<dyn Error + Send + Sync + 'static>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-        self.rx.poll_recv(cx).map(|s| s.map(Ok))
+        match &mut self.rx {
+            Receiver::Bounded(rx) => rx.poll_recv(cx).map(|s| s.map(Ok)),
+            Receiver::Unbounded(rx) => rx.poll_recv(cx).map(|s| s.map(Ok)),
+        }
     }
 }
 
 pub struct LocalTransportFactory<Req, Res> {
-    rx: mpsc::UnboundedReceiver<LocalTransport<Req, Res>>,
+    rx: Receiver<LocalTransport<Req, Res>>,
 }
 
 impl<Req, Res> Stream for LocalTransportFactory<Req, Res> {
     type Item = Result<LocalTransport<Req, Res>, Box<dyn Error + Send + Sync + 'static>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.rx.poll_recv(cx).map(|s| s.map(Ok))
+        match &mut self.rx {
+            Receiver::Bounded(rx) => rx.poll_recv(cx).map(|s| s.map(Ok)),
+            Receiver::Unbounded(rx) => rx.poll_recv(cx).map(|s| s.map(Ok)),
+        }
     }
 }
 
-pub fn unbounded<Req, Res>() -> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
+pub fn unbounded_channel<Req, Res>(
+) -> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
     let (tx, rx) = mpsc::unbounded_channel();
-    (LocalTransportFactory { rx }, LocalClientStream { tx })
+    (
+        LocalTransportFactory {
+            rx: Receiver::Unbounded(rx),
+        },
+        LocalClientStream {
+            tx: Sender::Unbounded(tx),
+        },
+    )
+}
+
+pub fn channel<Req, Res>(
+    buffer: usize,
+) -> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
+    let (tx, rx) = mpsc::channel(buffer);
+    (
+        LocalTransportFactory {
+            rx: Receiver::Bounded(rx),
+        },
+        LocalClientStream {
+            tx: Sender::Bounded(tx),
+        },
+    )
 }
 
 pub struct LocalClientStream<Req, Res> {
-    tx: mpsc::UnboundedSender<LocalTransport<Res, Req>>,
+    tx: Sender<LocalTransport<Res, Req>>,
 }
 
-impl<Req: Debug, Res: Debug> LocalClientStream<Req, Res> {
-    pub fn connect(&self) -> Result<LocalTransport<Req, Res>, SendError<LocalTransport<Res, Req>>> {
+impl<Req: Debug + Send + 'static, Res: Debug + Send + 'static> LocalClientStream<Req, Res> {
+    pub fn connect_unbounded(
+        &self,
+    ) -> Result<LocalTransport<Req, Res>, Box<dyn Error + Send + Sync>> {
         let (tx1, rx2) = mpsc::unbounded_channel();
         let (tx2, rx1) = mpsc::unbounded_channel();
-        let transport = LocalTransport::<Res, Req> { tx: tx1, rx: rx1 };
-        self.tx.send(transport)?;
-        Ok(LocalTransport { tx: tx2, rx: rx2 })
+        let transport = LocalTransport::<Res, Req> {
+            tx: Sender::Unbounded(tx1),
+            rx: Receiver::Unbounded(rx1),
+        };
+        match &self.tx {
+            Sender::Bounded(tx) => tx.try_send(transport)?,
+            Sender::Unbounded(tx) => tx.send(transport)?,
+        }
+
+        Ok(LocalTransport {
+            tx: Sender::Unbounded(tx2),
+            rx: Receiver::Unbounded(rx2),
+        })
+    }
+
+    pub fn connect(
+        &self,
+        buffer: usize,
+    ) -> Result<LocalTransport<Req, Res>, Box<dyn Error + Send + Sync>> {
+        let (tx1, rx2) = mpsc::channel(buffer);
+        let (tx2, rx1) = mpsc::channel(buffer);
+        let transport = LocalTransport::<Res, Req> {
+            tx: Sender::Bounded(tx1),
+            rx: Receiver::Bounded(rx1),
+        };
+        match &self.tx {
+            Sender::Bounded(tx) => tx.try_send(transport)?,
+            Sender::Unbounded(tx) => tx.send(transport)?,
+        }
+
+        Ok(LocalTransport {
+            tx: Sender::Bounded(tx2),
+            rx: Receiver::Bounded(rx2),
+        })
     }
 }

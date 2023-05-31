@@ -1,17 +1,14 @@
+use async_trait::async_trait;
+use background_service::BackgroundServiceManager;
 use std::{
     future,
     sync::atomic::{AtomicUsize, Ordering},
     task::Poll,
 };
-
-use async_trait::async_trait;
-use background_service::BackgroundServiceManager;
-
 use tokio_util::sync::CancellationToken;
-
 use tower::{service_fn, BoxError};
 use tower_rpc::{
-    transport::{tcp::TcpTransport, CodecTransport},
+    transport::{tcp, CodecTransport},
     Codec, MakeHandler, Request, SerdeCodec, Server,
 };
 
@@ -19,7 +16,7 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = TcpTransport::bind("127.0.0.1:8080".parse()?).await?;
+    let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
 
     let server = Server::pipeline(
         CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),

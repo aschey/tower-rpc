@@ -15,13 +15,17 @@ use tower_rpc::{
     serde_codec,
     transport::{
         ipc::{self, OnConflict},
-        tcp::{TcpStream, TcpTransport},
+        tcp::{self, TcpStream},
         CodecTransport,
     },
     Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
 };
 
 pub fn bench_calls(c: &mut Criterion) {
+    bench_inner(c).expect("Failed to run")
+}
+
+fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     let mut group = c.benchmark_group("calls");
     group
         .measurement_time(Duration::from_secs(20))
@@ -30,29 +34,25 @@ pub fn bench_calls(c: &mut Criterion) {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(4)
-        .build()
-        .unwrap();
+        .build()?;
 
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token);
     let mut context = manager.get_context();
     rt.block_on(async {
-        let transport =
-            ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
+        let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
 
         let server = Server::pipeline(
-            CodecTransport::new(
-                transport.incoming().unwrap(),
-                SerdeCodec::<usize, usize>::new(Codec::Bincode),
-            ),
+            CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
-        context.add_service(server).await.unwrap();
-    });
+        context.add_service(server).await?;
+        Ok::<_, BoxError>(())
+    })?;
 
     group.bench_function("ipc", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = ipc::connect("test").await.unwrap();
+            let client_transport = ipc::connect("test").await.expect("Failed to connect");
             let mut client = Client::new(serde_codec::<usize, usize>(
                 client_transport,
                 Codec::Bincode,
@@ -62,38 +62,38 @@ pub fn bench_calls(c: &mut Criterion) {
             tokio::spawn(async move {
                 let start = Instant::now();
                 for _i in 0..iters {
-                    i = black_box(client.call_ready(i).await.unwrap());
+                    i = black_box(client.call_ready(i).await.expect("Failed to call service"));
                 }
                 start.elapsed()
             })
             .await
-            .unwrap()
+            .expect("Failed to spawn task")
         });
     });
 
-    rt.block_on(async {
-        manager.cancel().await.unwrap();
-    });
+    rt.block_on(async { manager.cancel().await })?;
 
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token);
     let mut context = manager.get_context();
 
     rt.block_on(async move {
-        let transport = TcpTransport::bind("127.0.0.1:8080".parse().unwrap())
-            .await
-            .unwrap();
+        let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
 
         let server = Server::pipeline(
             CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
-        context.add_service(server).await.unwrap();
-    });
+        context.add_service(server).await?;
+
+        Ok::<_, BoxError>(())
+    })?;
 
     group.bench_function("tcp", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = TcpStream::connect("127.0.0.1:8080").await.unwrap();
+            let client_transport = TcpStream::connect("127.0.0.1:8080")
+                .await
+                .expect("Failed to connect");
             let mut client = Client::new(serde_codec::<usize, usize>(
                 client_transport,
                 Codec::Bincode,
@@ -103,19 +103,19 @@ pub fn bench_calls(c: &mut Criterion) {
             tokio::spawn(async move {
                 let start = Instant::now();
                 for _i in 0..iters {
-                    i = black_box(client.call_ready(i).await.unwrap());
+                    i = black_box(client.call_ready(i).await.expect("Failed to call service"));
                 }
                 start.elapsed()
             })
             .await
-            .unwrap()
+            .expect("Failed spawn")
         });
     });
     group.finish();
 
-    rt.block_on(async {
-        manager.cancel().await.unwrap();
-    });
+    rt.block_on(async { manager.cancel().await })?;
+
+    Ok(())
 }
 
 #[derive(Default)]

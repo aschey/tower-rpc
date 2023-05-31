@@ -33,12 +33,11 @@ struct HttpResponse<T> {
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport =
-        ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
+    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
 
     let codec = keyed_codec::<usize, HttpResponse<usize>, RequestMethod>(Codec::Bincode);
 
-    let transport = CodecTransport::new(transport.incoming()?, codec.clone());
+    let transport = CodecTransport::new(transport, codec.clone());
 
     let server = Server::pipeline(
         transport,
@@ -62,9 +61,9 @@ pub async fn main() -> Result<(), BoxError> {
 
             RouteService::with_keys()
                 .with_route(Method::GET, "/test1", svc1)
-                .unwrap()
+                .expect("Failed to create route")
                 .with_route(Method::POST, "/test2", svc2)
-                .unwrap()
+                .expect("Failed to create route")
         }),
     );
 

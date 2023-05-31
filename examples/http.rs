@@ -17,8 +17,8 @@ use tokio_util::sync::CancellationToken;
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 use tower_rpc::{
-    http::HttpAdapter, make_service_fn, transport::tcp::TcpTransport, Codec, CodecSerializer,
-    Keyed, RouteMatch, RouteService,
+    http::HttpAdapter, make_service_fn, transport::tcp, Codec, CodecSerializer, Keyed, RouteMatch,
+    RouteService,
 };
 
 #[tokio::main]
@@ -26,7 +26,7 @@ pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let context = manager.get_context();
-    let transport = TcpTransport::bind("127.0.0.1:8080".parse()?).await?;
+    let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
 
     let server = tower_rpc::http::Server::new(
         transport,

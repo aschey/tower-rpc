@@ -5,6 +5,10 @@ use tokio::{io, net::TcpListener};
 
 pub type TcpStream = tokio::net::TcpStream;
 
+pub async fn create_endpoint(addr: SocketAddr) -> io::Result<TcpTransport> {
+    TcpTransport::bind(addr).await
+}
+
 #[pin_project]
 pub struct TcpTransport {
     #[pin]
@@ -12,7 +16,7 @@ pub struct TcpTransport {
 }
 
 impl TcpTransport {
-    pub async fn bind(addr: SocketAddr) -> Result<Self, io::Error> {
+    async fn bind(addr: SocketAddr) -> io::Result<Self> {
         Ok(Self {
             listener: TcpListener::bind(addr).await?,
         })

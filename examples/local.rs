@@ -20,13 +20,13 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let (transport, client_stream) = local::unbounded();
+    let (transport, client_stream) = local::unbounded_channel();
 
     let server = Server::pipeline(transport, service_fn(Handler::make));
     let mut context = manager.get_context();
     context.add_service(server).await?;
 
-    let mut client = Client::new(client_stream.connect()?).create_pipeline();
+    let mut client = Client::new(client_stream.connect_unbounded()?).create_pipeline();
     let mut i = 0;
 
     loop {

@@ -2,15 +2,17 @@ use crate::{Keyed, Request, RoutedRequest};
 use async_trait::async_trait;
 use background_service::{error::BoxedError, BackgroundService, ServiceContext};
 use bytes::{Bytes, BytesMut};
+use eyre::Context;
 use futures::{Future, Stream};
 use futures_cancel::FutureExt;
 use http::Method;
 use http_body_util::{BodyExt, Full};
-use std::{error::Error, fmt::Debug, marker::PhantomData, pin::Pin, task::Poll};
+use std::{error::Error, fmt::Debug, io, marker::PhantomData, pin::Pin, task::Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Deserializer, Serializer};
 use tokio_stream::StreamExt;
 use tower::{BoxError, MakeService, Service, ServiceBuilder};
+use tracing::{debug, error};
 
 pub struct Server<K, H, S, I, E, Res>
 where
@@ -28,6 +30,7 @@ where
 impl<K, H, S, I, E, Res> Server<K, H, S, I, E, Res>
 where
     K: MakeService<(), hyper::Request<hyper::body::Incoming>, Service = H> + Send,
+    K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
     H: Service<hyper::Request<hyper::body::Incoming>, Response = http::Response<Res>>
@@ -62,7 +65,7 @@ where
                 .handler
                 .make_service(())
                 .await
-                .map_err(|e| format!("{e:?}"))?;
+                .wrap_err("Error making service")?;
 
             context
                 .add_service((
@@ -75,15 +78,24 @@ where
                             })
                             .service(handler);
 
-                        hyper::server::conn::http1::Builder::new()
+                        if let Err(e) = hyper::server::conn::http1::Builder::new()
                             .serve_connection(stream, service)
                             .await
-                            .unwrap();
+                        {
+                            if e.is_canceled() {
+                                debug!("HTTP stream cancelled");
+                            } else if e.is_closed() {
+                                debug!("HTTP stream closed");
+                            } else {
+                                error!("Error serving connection: {e:?}");
+                            }
+                        }
 
                         Ok(())
                     },
                 ))
-                .await?;
+                .await
+                .wrap_err("Error adding service")?;
         }
 
         Ok(())
@@ -94,6 +106,7 @@ where
 impl<K, H, S, I, E, Res> BackgroundService for Server<K, H, S, I, E, Res>
 where
     K: MakeService<(), hyper::Request<hyper::body::Incoming>, Service = H> + Send,
+    K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
     H: Service<hyper::Request<hyper::body::Incoming>, Response = http::Response<Res>>
@@ -146,18 +159,16 @@ where
 impl<S, D, M, Req> Service<hyper::Request<hyper::body::Incoming>> for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
-    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send + 'static,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
     S::Future: Send,
-    S::Error: std::fmt::Debug,
-    D: Serializer<S::Response>
-        + Deserializer<Req>
+    D: Serializer<S::Response, Error = io::Error>
+        + Deserializer<Req, Error = io::Error>
         + Clone
         + Unpin
         + std::fmt::Debug
         + Send
         + 'static,
-    <D as Serializer<S::Response>>::Error: std::fmt::Debug + Send + 'static,
-    <D as Deserializer<Req>>::Error: std::fmt::Debug + Send + 'static,
+
     M: From<Method> + Send,
 {
     type Error = BoxError;
@@ -184,19 +195,22 @@ where
                                 req.into_body()
                                     .collect()
                                     .await
-                                    .unwrap()
+                                    .wrap_err("Error collecting request body")?
                                     .to_bytes()
                                     .to_vec()
                                     .as_slice(),
                             ))
-                            .unwrap(),
+                            .wrap_err("Error deserializing request")?,
                     },
                 })
-                .await
-                .unwrap();
+                .await?;
             Ok(hyper::Response::builder()
-                .body(Full::new(Pin::new(&mut deser).serialize(&res).unwrap()))
-                .unwrap())
+                .body(Full::new(
+                    Pin::new(&mut deser)
+                        .serialize(&res)
+                        .wrap_err("Error serializing response")?,
+                ))
+                .wrap_err("Error creating response body")?)
         })
     }
 }
@@ -243,18 +257,15 @@ impl<S, D, M, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>
     for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
-    S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send + 'static,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
     S::Future: Send,
-    S::Error: std::fmt::Debug,
-    D: Serializer<S::Response>
-        + Deserializer<Req>
+    D: Serializer<S::Response, Error = io::Error>
+        + Deserializer<Req, Error = io::Error>
         + Clone
         + Unpin
         + std::fmt::Debug
         + Send
         + 'static,
-    <D as Serializer<S::Response>>::Error: std::fmt::Debug + Send + 'static,
-    <D as Deserializer<Req>>::Error: std::fmt::Debug + Send + 'static,
     M: From<Method> + Send,
 {
     type Response = http::Response<Full<Bytes>>;

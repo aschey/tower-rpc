@@ -25,6 +25,7 @@ tracing = "0.1"
 hyper = { version = "1.0.0-rc.3", features = ["full"], optional = true }
 http = { version = "0.2", optional = true }
 http-body-util = { version = "0.1.0-rc.2", optional = true }
+eyre = "0.6"
 
 [dev-dependencies]
 background-service = { git = "https://github.com/aschey/background-service-rs", rev = "0d0fc38608bf0443dd9d1ff162f97431248018e3", features = [

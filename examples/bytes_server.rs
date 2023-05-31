@@ -17,11 +17,10 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport =
-        ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
+    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
 
     let server = Server::pipeline(
-        CodecTransport::new(transport.incoming()?, LengthDelimitedCodec),
+        CodecTransport::new(transport, LengthDelimitedCodec),
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();
@@ -50,7 +49,7 @@ impl tower::Service<Request<BytesMut>> for Handler {
     fn call(&mut self, req: Request<BytesMut>) -> Self::Future {
         println!(
             "Request: {}",
-            String::from_utf8(req.value.to_vec()).unwrap()
+            String::from_utf8(req.value.to_vec()).expect("Invalid string")
         );
         println!("Send: pong");
         future::ready(Ok(Bytes::from("pong")))

@@ -19,12 +19,11 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport =
-        ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
+    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
 
     let server = Server::multiplex(
         CodecTransport::new(
-            transport.incoming()?,
+            transport,
             SerdeCodec::<Tagged<usize>, Tagged<usize>>::new(Codec::Bincode),
         ),
         make_service_fn(|| {

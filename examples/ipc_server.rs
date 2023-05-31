@@ -22,14 +22,10 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport =
-        ipc::create_endpoint("test", OnConflict::Overwrite).expect("Failed to create endpoint");
+    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
 
     let server = Server::pipeline(
-        CodecTransport::new(
-            transport.incoming()?,
-            SerdeCodec::<usize, usize>::new(Codec::Bincode),
-        ),
+        CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();

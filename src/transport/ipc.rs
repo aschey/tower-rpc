@@ -1,6 +1,8 @@
+use futures::Stream;
+use parity_tokio_ipc::{Connection, Endpoint};
 use std::io;
 
-use parity_tokio_ipc::{Connection, Endpoint};
+use crate::AsyncReadWrite;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum OnConflict {
@@ -25,8 +27,8 @@ pub fn get_socket_address(id: &str, suffix: &str) -> String {
 
 pub fn create_endpoint(
     app_id: impl AsRef<str>,
-    _on_conflict: OnConflict,
-) -> Result<Endpoint, io::Error> {
+    on_conflict: OnConflict,
+) -> io::Result<impl Stream<Item = io::Result<impl AsyncReadWrite>> + 'static> {
     let addr = get_socket_address(app_id.as_ref(), "");
     #[cfg(unix)]
     {
@@ -45,7 +47,7 @@ pub fn create_endpoint(
             }
         }
     }
-    Ok(Endpoint::new(addr))
+    Endpoint::new(get_socket_address(app_id.as_ref(), "")).incoming()
 }
 
 pub async fn connect(app_id: impl AsRef<str>) -> io::Result<Connection> {

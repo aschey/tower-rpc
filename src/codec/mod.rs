@@ -1,8 +1,6 @@
 use bytes::{Bytes, BytesMut};
-use futures::Stream;
-use std::{error::Error, io, pin::Pin};
+use std::io;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_stream::StreamExt;
 use tokio_util::codec::LengthDelimitedCodec;
 
 mod builder;
@@ -37,68 +35,6 @@ pub fn length_delimited_codec(
     ))
 }
 
-pub trait AsyncReadWrite: AsyncRead + AsyncWrite + Send + Unpin + 'static {
-    fn into_boxed(self) -> Box<dyn AsyncReadWrite>;
-}
+pub trait AsyncReadWrite: AsyncRead + AsyncWrite + Send + Unpin + 'static {}
 
-impl<T> AsyncReadWrite for T
-where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-{
-    fn into_boxed(self) -> Box<dyn AsyncReadWrite> {
-        Box::new(self)
-    }
-}
-
-pub trait IntoBoxedStream {
-    fn into_boxed(
-        self,
-    ) -> Pin<
-        Box<
-            dyn Stream<Item = Result<Box<dyn AsyncReadWrite>, Box<dyn Error + Send + Sync>>> + Send,
-        >,
-    >;
-}
-
-trait IntoBoxedError {
-    fn into_boxed(self) -> Box<dyn Error + Send + Sync + 'static>;
-}
-
-impl<E> IntoBoxedError for E
-where
-    E: Error + Send + Sync + Sized + 'static,
-{
-    fn into_boxed(self) -> Box<dyn Error + Send + Sync> {
-        Box::new(self)
-    }
-}
-
-impl<S, I, E> IntoBoxedStream for S
-where
-    S: Stream<Item = Result<I, E>> + Send + 'static,
-    I: AsyncReadWrite,
-    E: IntoBoxedError,
-{
-    fn into_boxed(
-        self,
-    ) -> Pin<
-        Box<
-            dyn Stream<Item = Result<Box<dyn AsyncReadWrite>, Box<dyn Error + Send + Sync>>> + Send,
-        >,
-    > {
-        Box::pin(self.map(|i| i.map(|r| r.into_boxed()).map_err(|e| e.into_boxed())))
-    }
-}
-
-pub trait IntoBoxedConnection {
-    fn into_boxed(self) -> Box<dyn AsyncReadWrite + Send + Unpin>;
-}
-
-impl<S> IntoBoxedConnection for S
-where
-    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-{
-    fn into_boxed(self) -> Box<dyn AsyncReadWrite + Send + Unpin> {
-        Box::new(self)
-    }
-}
+impl<T> AsyncReadWrite for T where T: AsyncRead + AsyncWrite + Send + Unpin + 'static {}

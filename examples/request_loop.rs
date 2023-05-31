@@ -15,7 +15,7 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let (transport, client_stream) = local::unbounded();
+    let (transport, client_stream) = local::unbounded_channel();
     let mut handler = RequestHandlerStreamFactory::default();
     let mut request_stream = handler.request_stream().expect("Request stream missing");
     let server = Server::pipeline(transport, handler);
@@ -32,7 +32,7 @@ pub async fn main() -> Result<(), BoxError> {
         }
     });
 
-    let mut client = Client::new(client_stream.connect()?).create_pipeline();
+    let mut client = Client::new(client_stream.connect_unbounded()?).create_pipeline();
     let mut i = 0;
 
     loop {
