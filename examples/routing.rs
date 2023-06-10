@@ -37,7 +37,7 @@ pub async fn main() -> Result<(), BoxError> {
     );
 
     let mut context = manager.get_context();
-    context.add_service(server).await?;
+    context.add_service(server);
 
     let mut client = Client::new(client_stream.connect_unbounded()?).create_pipeline();
 

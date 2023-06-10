@@ -21,7 +21,7 @@ pub async fn main() -> Result<(), BoxError> {
     let server = Server::pipeline(transport, handler);
 
     let mut context = manager.get_context();
-    context.add_service(server).await?;
+    context.add_service(server);
 
     tokio::spawn(async move {
         let mut i = 0;

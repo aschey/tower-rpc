@@ -45,7 +45,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
             CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
-        context.add_service(server).await?;
+        context.add_service(server);
         Ok::<_, BoxError>(())
     })?;
 
@@ -83,7 +83,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
             CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
-        context.add_service(server).await?;
+        context.add_service(server);
 
         Ok::<_, BoxError>(())
     })?;

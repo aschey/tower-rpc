@@ -24,7 +24,7 @@ pub async fn main() -> Result<(), BoxError> {
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();
-    context.add_service(server).await?;
+    context.add_service(server);
 
     manager.cancel_on_signal().await?;
     Ok(())

@@ -67,35 +67,32 @@ where
                 .await
                 .wrap_err("Error making service")?;
 
-            context
-                .add_service((
-                    "http_handler".to_owned(),
-                    move |_: ServiceContext| async move {
-                        let service = ServiceBuilder::default()
-                            .layer_fn(|inner| ServiceWrapper {
-                                inner,
-                                _phantom: Default::default(),
-                            })
-                            .service(handler);
+            context.add_service((
+                "http_handler".to_owned(),
+                move |_: ServiceContext| async move {
+                    let service = ServiceBuilder::default()
+                        .layer_fn(|inner| ServiceWrapper {
+                            inner,
+                            _phantom: Default::default(),
+                        })
+                        .service(handler);
 
-                        if let Err(e) = hyper::server::conn::http1::Builder::new()
-                            .serve_connection(stream, service)
-                            .await
-                        {
-                            if e.is_canceled() {
-                                debug!("HTTP stream cancelled");
-                            } else if e.is_closed() {
-                                debug!("HTTP stream closed");
-                            } else {
-                                error!("Error serving connection: {e:?}");
-                            }
+                    if let Err(e) = hyper::server::conn::http1::Builder::new()
+                        .serve_connection(stream, service)
+                        .await
+                    {
+                        if e.is_canceled() {
+                            debug!("HTTP stream cancelled");
+                        } else if e.is_closed() {
+                            debug!("HTTP stream closed");
+                        } else {
+                            error!("Error serving connection: {e:?}");
                         }
+                    }
 
-                        Ok(())
-                    },
-                ))
-                .await
-                .wrap_err("Error adding service")?;
+                    Ok(())
+                },
+            ));
         }
 
         Ok(())
