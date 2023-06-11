@@ -27,11 +27,11 @@ pub fn get_socket_address(id: &str, suffix: &str) -> String {
 
 pub fn create_endpoint(
     app_id: impl AsRef<str>,
-    on_conflict: OnConflict,
+    #[allow(unused)] on_conflict: OnConflict,
 ) -> io::Result<impl Stream<Item = io::Result<impl AsyncReadWrite>> + 'static> {
-    let addr = get_socket_address(app_id.as_ref(), "");
     #[cfg(unix)]
     {
+        let addr = get_socket_address(app_id.as_ref(), "");
         if std::path::Path::new(&addr).exists() {
             match on_conflict {
                 OnConflict::Error => {
