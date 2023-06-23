@@ -9,7 +9,7 @@ use tower::{service_fn, BoxError};
 use tower_rpc::{
     make_service_fn,
     transport::{
-        ipc::{self, OnConflict},
+        ipc::{self, OnConflict, SecurityAttributes},
         CodecTransport,
     },
     Codec, Request, SerdeCodec, Server, Tagged,
@@ -19,7 +19,11 @@ use tower_rpc::{
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
+    let transport = ipc::create_endpoint(
+        "test",
+        SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+        OnConflict::Overwrite,
+    )?;
 
     let server = Server::multiplex(
         CodecTransport::new(

@@ -14,7 +14,7 @@ use tower::{service_fn, BoxError};
 use tower_rpc::{
     serde_codec,
     transport::{
-        ipc::{self, OnConflict},
+        ipc::{self, OnConflict, SecurityAttributes},
         tcp, CodecTransport,
     },
     Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
@@ -39,7 +39,11 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     let manager = BackgroundServiceManager::new(cancellation_token);
     let mut context = manager.get_context();
     rt.block_on(async {
-        let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
+        let transport = ipc::create_endpoint(
+            "test",
+            SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+            OnConflict::Overwrite,
+        )?;
 
         let server = Server::pipeline(
             CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),

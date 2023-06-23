@@ -7,7 +7,7 @@ use tower::{service_fn, BoxError, ServiceExt};
 use tower_rpc::{
     keyed_codec, make_service_fn,
     transport::{
-        ipc::{self, OnConflict},
+        ipc::{self, OnConflict, SecurityAttributes},
         CodecTransport,
     },
     CallKeyedRoute, Client, Codec, RouteMatch, RouteService, Server,
@@ -33,7 +33,11 @@ struct HttpResponse<T> {
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
-    let transport = ipc::create_endpoint("test", OnConflict::Overwrite)?;
+    let transport = ipc::create_endpoint(
+        "test",
+        SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+        OnConflict::Overwrite,
+    )?;
 
     let codec = keyed_codec::<usize, HttpResponse<usize>, RequestMethod>(Codec::Bincode);
 
