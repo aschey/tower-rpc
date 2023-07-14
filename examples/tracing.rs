@@ -49,7 +49,7 @@ pub async fn main() -> Result<(), BoxError> {
             ServiceBuilder::default()
                 .layer_fn(|inner| TracingService {
                     client: inner,
-                    _phantom: PhantomData::default(),
+                    _phantom: PhantomData,
                 })
                 .service(Handler::default())
         }),

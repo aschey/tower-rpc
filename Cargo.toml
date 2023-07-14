@@ -5,7 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 async-trait = "0.1"
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "639911fe9bfee863c35dbab967185dae6a4a395f" }
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "135e57f8fc812337e83570f839796cd5d6c9018e" }
 bytes = "1"
 futures = "0.3"
 futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d" }
@@ -28,7 +28,7 @@ http-body-util = { version = "0.1.0-rc.2", optional = true }
 eyre = "0.6"
 
 [dev-dependencies]
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "639911fe9bfee863c35dbab967185dae6a4a395f", features = [
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "135e57f8fc812337e83570f839796cd5d6c9018e", features = [
     "signal",
 ] }
 tower-http = { git = "https://github.com/tower-rs/tower-http", branch = "http-body-1.0", features = [
@@ -37,14 +37,14 @@ tower-http = { git = "https://github.com/tower-rs/tower-http", branch = "http-bo
 criterion = { version = "0.5.1", features = ["async_tokio", "html_reports"] }
 http-serde = "1.1.2"
 rand = { version = "0.8.5", features = ["small_rng"] }
-tokio = { version = "1.28.2", features = [
+tokio = { version = "1.29.1", features = [
     "rt-multi-thread",
     "macros",
     "time",
     "process",
     "net",
 ] }
-tower = { version = "0.4", features = [
+tower = { version = "0.4.13", features = [
     "make",
     "util",
     "buffer",
@@ -52,7 +52,7 @@ tower = { version = "0.4", features = [
     "reconnect",
 ] }
 tracing-subscriber = "0.3.17"
-tracing-tree = "0.2.3"
+tracing-tree = "0.2.4"
 
 [features]
 all = [
