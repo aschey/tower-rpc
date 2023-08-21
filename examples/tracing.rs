@@ -1,27 +1,23 @@
-use std::{
-    fmt::Debug,
-    future,
-    marker::PhantomData,
-    pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
-    task::Poll,
-    time::{Duration, Instant},
-};
+use std::fmt::Debug;
+use std::future;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::Poll;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
-
 use futures::Future;
 use tokio_util::sync::CancellationToken;
-
-use tower::{layer::layer_fn, BoxError, Service, ServiceBuilder};
-use tower_rpc::{
-    make_service_fn,
-    transport::local::{self},
-    Client, ReadyServiceExt, Request, Server,
-};
-use tracing::{info, metadata::LevelFilter, span, Level};
-use tracing_subscriber::{prelude::*, Registry};
+use tower::layer::layer_fn;
+use tower::{BoxError, Service, ServiceBuilder};
+use tower_rpc::transport::local::{self};
+use tower_rpc::{make_service_fn, Client, ReadyServiceExt, Request, Server};
+use tracing::metadata::LevelFilter;
+use tracing::{info, span, Level};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::Registry;
 use tracing_tree::HierarchicalLayer;
 
 #[tokio::main]

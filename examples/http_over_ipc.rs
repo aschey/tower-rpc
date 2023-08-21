@@ -1,16 +1,16 @@
+use std::convert::Infallible;
+use std::future;
+use std::time::Duration;
+
 use background_service::BackgroundServiceManager;
 use http::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
-use std::{convert::Infallible, future, time::Duration};
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, ServiceExt};
+use tower_rpc::transport::ipc::{self, ConnectionId, IpcSecurity, OnConflict, SecurityAttributes};
+use tower_rpc::transport::CodecTransport;
 use tower_rpc::{
-    keyed_codec, make_service_fn,
-    transport::{
-        ipc::{self, OnConflict, SecurityAttributes},
-        CodecTransport,
-    },
-    CallKeyedRoute, Client, Codec, RouteMatch, RouteService, Server,
+    keyed_codec, make_service_fn, CallKeyedRoute, Client, Codec, RouteMatch, RouteService, Server,
 };
 
 #[derive(Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
@@ -34,7 +34,7 @@ pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::create_endpoint(
-        "test",
+        ConnectionId("test"),
         SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
         OnConflict::Overwrite,
     )?;

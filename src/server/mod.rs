@@ -1,13 +1,18 @@
-use crate::{service::RequestService, Pipeline, Request, ServerMode};
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use async_trait::async_trait;
-use background_service::{error::BoxedError, BackgroundService, ServiceContext};
+use background_service::error::BoxedError;
+use background_service::{BackgroundService, ServiceContext};
 use futures::{Sink, Stream, TryStream};
 use futures_cancel::FutureExt;
-use std::{fmt::Debug, marker::PhantomData};
 use tokio_stream::StreamExt;
 use tokio_tower::pipeline;
 use tower::{MakeService, ServiceBuilder};
 use tracing::info;
+
+use crate::service::RequestService;
+use crate::{Pipeline, Request, ServerMode};
 
 #[cfg(feature = "multiplex")]
 mod multiplex;
@@ -80,7 +85,8 @@ where
                             Ok(()) => Ok(()),
                             Err(pipeline::server::Error::Service(e)) => Err(format!("{e:?}"))?,
                             Err(e) => {
-                                // Transport errors can happen if the client disconnects so they may be expected
+                                // Transport errors can happen if the client disconnects so they may
+                                // be expected
                                 info!("Transport failure: {e:?}");
                                 Ok(())
                             }

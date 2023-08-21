@@ -1,8 +1,8 @@
-use crate::codec::Codec;
-use serde::{Deserialize, Serialize};
 use std::io;
 use std::marker::PhantomData;
 use std::pin::Pin;
+
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "bincode")]
 use tokio_serde::formats::Bincode;
 #[cfg(feature = "cbor")]
@@ -12,6 +12,8 @@ use tokio_serde::formats::Json;
 #[cfg(feature = "messagepack")]
 use tokio_serde::formats::MessagePack;
 use tokio_serde::{Deserializer, Serializer};
+
+use crate::codec::Codec;
 
 #[derive(Clone, Debug)]
 pub struct CodecSerializer<Item, SinkItem>

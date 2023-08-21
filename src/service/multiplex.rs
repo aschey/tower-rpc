@@ -1,5 +1,7 @@
+use std::pin::Pin;
+use std::task::Poll;
+
 use futures::Future;
-use std::{pin::Pin, task::Poll};
 
 #[derive(Clone, Debug)]
 pub struct MultiplexService<S> {

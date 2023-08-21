@@ -1,23 +1,16 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use std::{
-    task::Poll,
-    time::{Duration, Instant},
-};
+use std::task::Poll;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
-
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
 use tokio_util::sync::CancellationToken;
-
 use tower::{service_fn, BoxError};
+use tower_rpc::transport::ipc::{self, ConnectionId, IpcSecurity, OnConflict, SecurityAttributes};
+use tower_rpc::transport::{tcp, CodecTransport};
 use tower_rpc::{
-    serde_codec,
-    transport::{
-        ipc::{self, OnConflict, SecurityAttributes},
-        tcp, CodecTransport,
-    },
-    Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
+    serde_codec, Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
 };
 
 pub fn bench_calls(c: &mut Criterion) {
@@ -40,7 +33,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     let mut context = manager.get_context();
     rt.block_on(async {
         let transport = ipc::create_endpoint(
-            "test",
+            ConnectionId("test"),
             SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
             OnConflict::Overwrite,
         )?;

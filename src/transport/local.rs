@@ -1,10 +1,9 @@
 use core::fmt::Debug;
+use std::error::Error;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use futures::{Sink, Stream};
-use std::{
-    error::Error,
-    pin::Pin,
-    task::{Context, Poll},
-};
 use tokio::sync::mpsc::{self};
 
 #[derive(Debug)]
@@ -75,8 +74,8 @@ impl<Req, Res> Stream for LocalTransportFactory<Req, Res> {
     }
 }
 
-pub fn unbounded_channel<Req, Res>(
-) -> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
+pub fn unbounded_channel<Req, Res>()
+-> (LocalTransportFactory<Req, Res>, LocalClientStream<Res, Req>) {
     let (tx, rx) = mpsc::unbounded_channel();
     (
         LocalTransportFactory {

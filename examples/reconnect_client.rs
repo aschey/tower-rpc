@@ -1,6 +1,10 @@
 use std::time::Duration;
-use tower::{reconnect::Reconnect, service_fn, util::BoxService, BoxError, ServiceExt};
-use tower_rpc::{serde_codec, transport::tcp, Client, Codec, ReadyServiceExt};
+
+use tower::reconnect::Reconnect;
+use tower::util::BoxService;
+use tower::{service_fn, BoxError, ServiceExt};
+use tower_rpc::transport::tcp;
+use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() {

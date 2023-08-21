@@ -1,7 +1,11 @@
-use crate::Request;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::Poll;
+
 use background_service::ServiceContext;
 use futures::Future;
-use std::{marker::PhantomData, pin::Pin, task::Poll};
+
+use crate::Request;
 
 #[derive(Clone)]
 pub struct RequestService<S, Res> {

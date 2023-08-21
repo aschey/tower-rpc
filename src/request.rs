@@ -1,5 +1,6 @@
-use background_service::ServiceContext;
 use std::fmt::Debug;
+
+use background_service::ServiceContext;
 
 #[derive(Clone)]
 pub struct Request<T> {

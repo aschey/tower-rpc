@@ -1,12 +1,12 @@
+use std::convert::Infallible;
+use std::future;
+use std::time::Duration;
+
 use background_service::BackgroundServiceManager;
-use std::{convert::Infallible, future, time::Duration};
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, ServiceExt};
-use tower_rpc::{
-    make_service_fn,
-    transport::local::{self},
-    CallRoute, Client, RouteMatch, RouteService, Server,
-};
+use tower_rpc::transport::local::{self};
+use tower_rpc::{make_service_fn, CallRoute, Client, RouteMatch, RouteService, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

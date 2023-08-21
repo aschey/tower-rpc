@@ -1,20 +1,14 @@
-use std::{
-    future,
-    sync::atomic::{AtomicUsize, Ordering},
-    task::Poll,
-    time::Duration,
-};
+use std::future;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::Poll;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
-
 use tokio_util::sync::CancellationToken;
-
 use tower::{service_fn, BoxError};
-use tower_rpc::{
-    transport::local::{self},
-    Client, MakeHandler, ReadyServiceExt, Request, Server,
-};
+use tower_rpc::transport::local::{self};
+use tower_rpc::{Client, MakeHandler, ReadyServiceExt, Request, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

@@ -1,15 +1,16 @@
-use async_trait::async_trait;
+use std::convert::Infallible;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::pin::Pin;
 
+use async_trait::async_trait;
 use futures::{future, Future, Stream};
 use futures_cancel::FutureExt;
 use pin_project::pin_project;
+use tokio::sync::mpsc::error::SendError;
+use tokio::sync::mpsc::{self};
+use tokio::sync::oneshot;
 use tower::BoxError;
-
-use std::{convert::Infallible, fmt::Debug, marker::PhantomData, pin::Pin};
-use tokio::sync::{
-    mpsc::{self, error::SendError},
-    oneshot,
-};
 
 use crate::Request;
 

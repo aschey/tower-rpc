@@ -1,15 +1,11 @@
 use std::time::Duration;
 
 use background_service::BackgroundServiceManager;
-
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
-
 use tower::BoxError;
-use tower_rpc::{
-    transport::local::{self},
-    Client, ReadyServiceExt, RequestHandlerStreamFactory, Server,
-};
+use tower_rpc::transport::local::{self};
+use tower_rpc::{Client, ReadyServiceExt, RequestHandlerStreamFactory, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

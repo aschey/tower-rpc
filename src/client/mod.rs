@@ -1,5 +1,7 @@
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
 use futures::{Sink, TryStream};
-use std::{fmt::Debug, marker::PhantomData};
 use tokio_tower::pipeline;
 
 #[cfg(feature = "multiplex")]

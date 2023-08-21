@@ -1,15 +1,10 @@
 use std::time::Duration;
 
 use background_service::BackgroundServiceManager;
-
 use tokio_util::sync::CancellationToken;
-
 use tower::BoxError;
-use tower_rpc::{
-    channel,
-    transport::local::{self},
-    Client, ReadyServiceExt, Server,
-};
+use tower_rpc::transport::local::{self};
+use tower_rpc::{channel, Client, ReadyServiceExt, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

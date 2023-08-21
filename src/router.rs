@@ -1,12 +1,10 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    fmt::Debug,
-    future,
-    hash::Hash,
-    marker::PhantomData,
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::collections::{HashMap, VecDeque};
+use std::fmt::Debug;
+use std::future;
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use background_service::ServiceContext;
@@ -145,7 +143,8 @@ where
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         loop {
             // must wait for *all* services to be ready.
-            // this will cause head-of-line blocking unless the underlying services are always ready.
+            // this will cause head-of-line blocking unless the underlying services are always
+            // ready.
             if self.not_ready.is_empty() {
                 return Poll::Ready(Ok(()));
             } else {

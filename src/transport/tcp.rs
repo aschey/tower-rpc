@@ -1,10 +1,10 @@
+use std::net::SocketAddr;
+use std::task::Poll;
+
 use futures::Stream;
 use pin_project::pin_project;
-use std::{net::SocketAddr, task::Poll};
-use tokio::{
-    io,
-    net::{TcpListener, ToSocketAddrs},
-};
+use tokio::io;
+use tokio::net::{TcpListener, ToSocketAddrs};
 
 pub type TcpStream = tokio::net::TcpStream;
 

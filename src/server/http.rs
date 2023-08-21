@@ -1,18 +1,26 @@
-use crate::{Keyed, Request, RoutedRequest};
+use std::error::Error;
+use std::fmt::Debug;
+use std::io;
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::Poll;
+
 use async_trait::async_trait;
-use background_service::{error::BoxedError, BackgroundService, ServiceContext};
+use background_service::error::BoxedError;
+use background_service::{BackgroundService, ServiceContext};
 use bytes::{Bytes, BytesMut};
 use eyre::Context;
 use futures::{Future, Stream};
 use futures_cancel::FutureExt;
 use http::Method;
 use http_body_util::{BodyExt, Full};
-use std::{error::Error, fmt::Debug, io, marker::PhantomData, pin::Pin, task::Poll};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Deserializer, Serializer};
 use tokio_stream::StreamExt;
 use tower::{BoxError, MakeService, Service, ServiceBuilder};
 use tracing::{debug, error};
+
+use crate::{Keyed, Request, RoutedRequest};
 
 pub struct Server<K, H, S, I, E, Res>
 where

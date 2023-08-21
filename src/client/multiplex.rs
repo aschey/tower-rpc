@@ -1,8 +1,14 @@
-use crate::{service::DemultiplexService, Client, ClientError, Tagged};
+use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::pin::Pin;
+
 use futures::{Sink, TryStream};
-use std::{fmt::Debug, marker::PhantomData, pin::Pin};
 use tokio_tower::multiplex::{self, MultiplexTransport, TagStore};
-use tower::{util::BoxService, ServiceBuilder, ServiceExt};
+use tower::util::BoxService;
+use tower::{ServiceBuilder, ServiceExt};
+
+use crate::service::DemultiplexService;
+use crate::{Client, ClientError, Tagged};
 
 #[cfg(feature = "multiplex")]
 impl<S, Req, Res> Client<S, Tagged<Req>, Tagged<Res>>

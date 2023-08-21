@@ -1,16 +1,17 @@
-use crate::{
-    service::{MultiplexService, RequestService},
-    Multiplex, Request, Server, Tagged,
-};
+use std::fmt::Debug;
+
 use async_trait::async_trait;
-use background_service::{error::BoxedError, BackgroundService, ServiceContext};
+use background_service::error::BoxedError;
+use background_service::{BackgroundService, ServiceContext};
 use futures::{Sink, Stream, TryStream};
 use futures_cancel::FutureExt;
-use std::fmt::Debug;
 use tokio_stream::StreamExt;
 use tokio_tower::multiplex;
 use tower::{MakeService, ServiceBuilder};
 use tracing::info;
+
+use crate::service::{MultiplexService, RequestService};
+use crate::{Multiplex, Request, Server, Tagged};
 
 impl<K, H, S, I, E, Req, Res> Server<K, H, S, I, E, Multiplex, Req, Res>
 where
@@ -63,7 +64,8 @@ where
                             Ok(()) => Ok(()),
                             Err(multiplex::server::Error::Service(e)) => Err(format!("{e:?}"))?,
                             Err(e) => {
-                                // Transport errors can happen if the client disconnects so they may be expected
+                                // Transport errors can happen if the client disconnects so they may
+                                // be expected
                                 info!("Transport failure: {e:?}");
                                 Ok(())
                             }

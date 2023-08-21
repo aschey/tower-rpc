@@ -1,11 +1,11 @@
-use std::{io, marker::PhantomData};
+use std::io;
+use std::marker::PhantomData;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::LengthDelimitedCodec;
 
-use crate::{AsyncReadWrite, Codec, CodecBuilder, CodecStream};
-
 use super::serializer::CodecSerializer;
+use crate::{AsyncReadWrite, Codec, CodecBuilder, CodecStream};
 
 pub fn serde_codec<Req, Res>(
     incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,

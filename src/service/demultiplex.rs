@@ -1,5 +1,8 @@
+use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::Poll;
+
 use futures::Future;
-use std::{marker::PhantomData, pin::Pin, task::Poll};
 
 #[derive(Clone, Debug)]
 pub struct DemultiplexService<S, Res> {

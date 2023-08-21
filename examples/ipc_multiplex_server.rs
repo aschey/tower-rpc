@@ -1,26 +1,21 @@
-use std::{convert::Infallible, time::Duration};
+use std::convert::Infallible;
+use std::time::Duration;
 
 use background_service::BackgroundServiceManager;
-
-use rand::{rngs::SmallRng, Rng, SeedableRng};
+use rand::rngs::SmallRng;
+use rand::{Rng, SeedableRng};
 use tokio_util::sync::CancellationToken;
-
 use tower::{service_fn, BoxError};
-use tower_rpc::{
-    make_service_fn,
-    transport::{
-        ipc::{self, OnConflict, SecurityAttributes},
-        CodecTransport,
-    },
-    Codec, Request, SerdeCodec, Server, Tagged,
-};
+use tower_rpc::transport::ipc::{self, ConnectionId, IpcSecurity, OnConflict, SecurityAttributes};
+use tower_rpc::transport::CodecTransport;
+use tower_rpc::{make_service_fn, Codec, Request, SerdeCodec, Server, Tagged};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::create_endpoint(
-        "test",
+        ConnectionId("test"),
         SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
         OnConflict::Overwrite,
     )?;

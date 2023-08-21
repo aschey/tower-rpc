@@ -1,25 +1,18 @@
-use std::{
-    future,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    task::Poll,
-};
+use std::future;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::task::Poll;
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
-
 use http::Method;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
-use tower_rpc::{
-    http::HttpAdapter, make_service_fn, transport::tcp, Codec, CodecSerializer, Keyed, RouteMatch,
-    RouteService,
-};
+use tower_rpc::http::HttpAdapter;
+use tower_rpc::transport::tcp;
+use tower_rpc::{make_service_fn, Codec, CodecSerializer, Keyed, RouteMatch, RouteService};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {

@@ -1,7 +1,11 @@
-use crate::AsyncReadWrite;
+use std::error::Error;
+use std::io;
+use std::marker::PhantomData;
+
 use bytes::{Bytes, BytesMut};
 use futures::{Sink, Stream};
-use std::{error::Error, io, marker::PhantomData};
+
+use crate::AsyncReadWrite;
 
 pub trait StreamSink<SinkItem>: Stream + Sink<SinkItem> + Unpin + Send {}
 
