@@ -10,7 +10,10 @@ use tower_rpc::{Client, ReadyServiceExt, RequestHandlerStreamFactory, Server};
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token.clone());
+    let manager = BackgroundServiceManager::new(
+        cancellation_token.clone(),
+        background_service::Settings::default(),
+    );
     let (transport, client_stream) = local::unbounded_channel();
     let mut handler = RequestHandlerStreamFactory::default();
     let mut request_stream = handler.request_stream().expect("Request stream missing");

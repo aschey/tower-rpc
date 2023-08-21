@@ -36,7 +36,10 @@ pub async fn main() -> Result<(), BoxError> {
     tracing::subscriber::set_global_default(subscriber)?;
 
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token.clone());
+    let manager = BackgroundServiceManager::new(
+        cancellation_token.clone(),
+        background_service::Settings::default(),
+    );
     let (transport, client_stream) = local::unbounded_channel();
 
     let server = Server::pipeline(

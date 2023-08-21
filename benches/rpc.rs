@@ -29,7 +29,8 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
         .build()?;
 
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token);
+    let manager =
+        BackgroundServiceManager::new(cancellation_token, background_service::Settings::default());
     let mut context = manager.get_context();
     rt.block_on(async {
         let transport = ipc::create_endpoint(
@@ -72,7 +73,8 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     rt.block_on(async { manager.cancel().await })?;
 
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token);
+    let manager =
+        BackgroundServiceManager::new(cancellation_token, background_service::Settings::default());
     let mut context = manager.get_context();
 
     rt.block_on(async move {

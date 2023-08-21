@@ -5,7 +5,7 @@ version = "0.1.0"
 
 [dependencies]
 async-trait = "0.1"
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "135e57f8fc812337e83570f839796cd5d6c9018e" }
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "a2ad6a6d0c792e54ae7d6ab9fe36953ab4ce4e1c" }
 bytes = "1"
 futures = "0.3"
 futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "563f413a206c50c7cc1a003cf6a9d3b227b0b04d" }
@@ -28,7 +28,7 @@ http-body-util = { version = "=0.1.0-rc.2", optional = true }
 eyre = "0.6"
 
 [dev-dependencies]
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "135e57f8fc812337e83570f839796cd5d6c9018e", features = [
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "a2ad6a6d0c792e54ae7d6ab9fe36953ab4ce4e1c", features = [
     "signal",
 ] }
 tower-http = { git = "https://github.com/tower-rs/tower-http", branch = "http-body-1.0", features = [

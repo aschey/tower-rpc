@@ -11,7 +11,10 @@ use tower_rpc::{make_service_fn, CallRoute, Client, RouteMatch, RouteService, Se
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token.clone());
+    let manager = BackgroundServiceManager::new(
+        cancellation_token.clone(),
+        background_service::Settings::default(),
+    );
     let (transport, client_stream) = local::unbounded_channel();
 
     let server = Server::pipeline(

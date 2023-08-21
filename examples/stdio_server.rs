@@ -13,7 +13,10 @@ use tower_rpc::{Codec, MakeHandler, Request, SerdeCodec, Server};
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token.clone());
+    let manager = BackgroundServiceManager::new(
+        cancellation_token.clone(),
+        background_service::Settings::default(),
+    );
     let transport = StdioTransport::incoming();
 
     let server = Server::pipeline(

@@ -17,7 +17,10 @@ use tower_rpc::{make_service_fn, Codec, CodecSerializer, Keyed, RouteMatch, Rout
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
-    let manager = BackgroundServiceManager::new(cancellation_token.clone());
+    let manager = BackgroundServiceManager::new(
+        cancellation_token.clone(),
+        background_service::Settings::default(),
+    );
     let context = manager.get_context();
     let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
 
