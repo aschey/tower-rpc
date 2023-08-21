@@ -7,7 +7,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError};
-use tower_rpc::transport::ipc::{self, ConnectionId, IpcSecurity, OnConflict, SecurityAttributes};
+use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
 use tower_rpc::transport::{tcp, CodecTransport};
 use tower_rpc::{
     serde_codec, Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
@@ -33,7 +33,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     let mut context = manager.get_context();
     rt.block_on(async {
         let transport = ipc::create_endpoint(
-            ConnectionId("test"),
+            ServerId("test"),
             SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
             OnConflict::Overwrite,
         )?;
@@ -48,7 +48,9 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
 
     group.bench_function("ipc", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = ipc::connect("test").await.expect("Failed to connect");
+            let client_transport = ipc::connect(ServerId("test"))
+                .await
+                .expect("Failed to connect");
             let mut client = Client::new(serde_codec::<usize, usize>(
                 client_transport,
                 Codec::Bincode,

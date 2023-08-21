@@ -1,9 +1,7 @@
 use std::io;
 
 use parity_tokio_ipc::{Connection, Endpoint, IpcEndpoint, IpcStream};
-pub use parity_tokio_ipc::{
-    ConnectionId, IntoIpcPath, IpcSecurity, OnConflict, SecurityAttributes,
-};
+pub use parity_tokio_ipc::{IntoIpcPath, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
 
 pub fn create_endpoint(
     app_id: impl IntoIpcPath,

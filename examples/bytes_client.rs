@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use tower::BoxError;
-use tower_rpc::transport::ipc::{self, ConnectionId};
+use tower_rpc::transport::ipc::{self, ServerId};
 use tower_rpc::{length_delimited_codec, Client, ReadyServiceExt};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
-    let client_transport = ipc::connect(ConnectionId("test")).await?;
+    let client_transport = ipc::connect(ServerId("test")).await?;
     let mut client = Client::new(length_delimited_codec(client_transport)).create_pipeline();
 
     loop {

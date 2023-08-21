@@ -7,7 +7,7 @@ use http::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, ServiceExt};
-use tower_rpc::transport::ipc::{self, ConnectionId, IpcSecurity, OnConflict, SecurityAttributes};
+use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
 use tower_rpc::transport::CodecTransport;
 use tower_rpc::{
     keyed_codec, make_service_fn, CallKeyedRoute, Client, Codec, RouteMatch, RouteService, Server,
@@ -34,7 +34,7 @@ pub async fn main() -> Result<(), BoxError> {
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(cancellation_token.clone());
     let transport = ipc::create_endpoint(
-        ConnectionId("test"),
+        ServerId("test"),
         SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
         OnConflict::Overwrite,
     )?;
@@ -74,7 +74,7 @@ pub async fn main() -> Result<(), BoxError> {
     let mut context = manager.get_context();
     context.add_service(server);
 
-    let client_transport = ipc::connect("test").await?;
+    let client_transport = ipc::connect(ServerId("test")).await?;
     let mut client = Client::new(codec.client(client_transport)).create_pipeline();
 
     let mut i = 0;
