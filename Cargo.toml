@@ -8,7 +8,7 @@ async-trait = "0.1"
 background-service = { git = "https://github.com/aschey/background-service-rs", rev = "a2ad6a6d0c792e54ae7d6ab9fe36953ab4ce4e1c" }
 bytes = "1"
 futures = "0.3"
-futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "51a275e23e4f636f2c491cd1f2a31437ba06d530" }
+futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "d2c20b78ff5c9e85aa892b51971cc1c1b6b22351" }
 matchit = { version = "0.7", optional = true }
 parity-tokio-ipc = { git = "https://github.com/aschey/parity-tokio-ipc", rev = "588198a0abb32a79f6f3e656ff0472008e4ba9b8", optional = true }
 pin-project = "1"
