@@ -16,6 +16,7 @@ use tower_rpc::{make_service_fn, Codec, CodecSerializer, Keyed, RouteMatch, Rout
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
+    tracing_subscriber::fmt().init();
     let cancellation_token = CancellationToken::default();
     let manager = BackgroundServiceManager::new(
         cancellation_token.clone(),
@@ -24,6 +25,9 @@ pub async fn main() -> Result<(), BoxError> {
     let context = manager.get_context();
     let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
 
+    let handler = Handler {
+        count: Arc::new(AtomicUsize::new(0)),
+    };
     let server = tower_rpc::http::Server::new(
         transport,
         make_service_fn(move || {
@@ -34,13 +38,7 @@ pub async fn main() -> Result<(), BoxError> {
                 })
                 .service(
                     RouteService::with_keys()
-                        .with_route(
-                            Method::POST,
-                            "/test1",
-                            Handler {
-                                count: Arc::new(AtomicUsize::new(0)),
-                            },
-                        )
+                        .with_route(Method::POST, "/test1", handler.clone())
                         .unwrap(),
                 )
         }),

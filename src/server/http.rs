@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::io;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use async_trait::async_trait;
@@ -14,6 +15,7 @@ use futures::{Future, Stream};
 use futures_cancel::FutureExt;
 use http::Method;
 use http_body_util::{BodyExt, Full};
+use hyper_util::rt::TokioIo;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Deserializer, Serializer};
 use tokio_stream::StreamExt;
@@ -83,10 +85,10 @@ where
                             inner,
                             _phantom: Default::default(),
                         })
-                        .service(handler);
+                        .service(Arc::new(Mutex::new(handler)));
 
                     if let Err(e) = hyper::server::conn::http1::Builder::new()
-                        .serve_connection(stream, service)
+                        .serve_connection(TokioIo::new(stream), service)
                         .await
                     {
                         if e.is_canceled() {
@@ -185,6 +187,68 @@ where
     }
 
     fn call(&mut self, req: hyper::Request<hyper::body::Incoming>) -> Self::Future {
+        hyper::service::Service::call(self, req)
+    }
+}
+
+struct ServiceWrapper<S, Req>
+where
+    S: Service<hyper::Request<Req>>,
+{
+    inner: Arc<Mutex<S>>,
+    _phantom: PhantomData<Req>,
+}
+
+impl<S, Req, Res> Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
+where
+    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
+{
+    type Error = S::Error;
+    type Response = S::Response;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.lock().unwrap().poll_ready(cx)
+    }
+
+    fn call(&mut self, req: hyper::Request<Req>) -> Self::Future {
+        self.inner.lock().unwrap().call(req)
+    }
+}
+
+impl<S, Req, Res> hyper::service::Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
+where
+    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn call(&self, req: hyper::Request<Req>) -> Self::Future {
+        self.inner.lock().unwrap().call(req)
+    }
+}
+
+impl<S, D, M, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>>
+    for HttpAdapter<S, D, M, Req>
+where
+    Req: Send,
+    S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
+    S::Future: Send,
+    D: Serializer<S::Response, Error = io::Error>
+        + Deserializer<Req, Error = io::Error>
+        + Clone
+        + Unpin
+        + std::fmt::Debug
+        + Send
+        + 'static,
+    M: From<Method> + Send,
+{
+    type Response = http::Response<Full<Bytes>>;
+    type Error = BoxError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn call(&self, req: http::Request<hyper::body::Incoming>) -> Self::Future {
         let mut inner = self.inner.clone();
         let mut deser = self.serializer.clone();
         let context = self.context.clone();
@@ -217,67 +281,5 @@ where
                 ))
                 .wrap_err("Error creating response body")?)
         })
-    }
-}
-
-struct ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>>,
-{
-    inner: S,
-    _phantom: PhantomData<Req>,
-}
-
-impl<S, Req, Res> Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
-{
-    type Error = S::Error;
-    type Response = S::Response;
-    type Future = S::Future;
-
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: hyper::Request<Req>) -> Self::Future {
-        self.inner.call(req)
-    }
-}
-
-impl<S, Req, Res> hyper::service::Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = S::Future;
-
-    fn call(&mut self, req: hyper::Request<Req>) -> Self::Future {
-        tower::Service::call(self, req)
-    }
-}
-
-impl<S, D, M, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>>
-    for HttpAdapter<S, D, M, Req>
-where
-    Req: Send,
-    S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
-    S::Future: Send,
-    D: Serializer<S::Response, Error = io::Error>
-        + Deserializer<Req, Error = io::Error>
-        + Clone
-        + Unpin
-        + std::fmt::Debug
-        + Send
-        + 'static,
-    M: From<Method> + Send,
-{
-    type Response = http::Response<Full<Bytes>>;
-    type Error = BoxError;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn call(&mut self, req: http::Request<hyper::body::Incoming>) -> Self::Future {
-        tower::Service::call(self, req)
     }
 }
