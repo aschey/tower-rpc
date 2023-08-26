@@ -2,7 +2,6 @@ use std::io;
 
 use bytes::{Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio_util::codec::LengthDelimitedCodec;
 
 mod builder;
 pub use builder::*;
@@ -32,7 +31,7 @@ pub fn length_delimited_codec(
 ) -> CodecStream<BytesMut, Bytes, io::Error, io::Error> {
     Box::new(tokio_util::codec::Framed::new(
         incoming,
-        LengthDelimitedCodec::new(),
+        tokio_util::codec::LengthDelimitedCodec::new(),
     ))
 }
 
