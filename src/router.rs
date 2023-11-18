@@ -75,10 +75,18 @@ where
 }
 
 impl<Req, S> RouteService<Req, S> {
-    pub fn with_route(mut self, route: impl Into<String>, service: S) -> Result<Self, InsertError> {
+    pub fn with_route(self, route: impl Into<String>, service: S) -> Self {
+        self.try_with_route(route, service).expect("invalid route")
+    }
+
+    pub fn try_with_route(
+        mut self,
+        route: impl Into<String>,
+        service: S,
+    ) -> Result<Self, InsertError> {
         self.routers
             .get_mut(&())
-            .unwrap()
+            .expect("type error")
             .insert(route, self.route_index)?;
         self.services.push(service);
         self.not_ready.push_back(self.route_index);
@@ -103,7 +111,12 @@ where
         }
     }
 
-    pub fn with_route(
+    pub fn with_route(self, key: impl Into<K>, route: impl Into<String>, service: S) -> Self {
+        self.try_with_route(key, route, service)
+            .expect("invalid route")
+    }
+
+    pub fn try_with_route(
         mut self,
         key: impl Into<K>,
         route: impl Into<String>,

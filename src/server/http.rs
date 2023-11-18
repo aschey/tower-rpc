@@ -175,7 +175,6 @@ where
         + std::fmt::Debug
         + Send
         + 'static,
-
     M: From<Method> + Send,
 {
     type Error = BoxError;
@@ -208,11 +207,11 @@ where
     type Future = S::Future;
 
     fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.lock().unwrap().poll_ready(cx)
+        self.inner.lock().expect("lock poisoned").poll_ready(cx)
     }
 
     fn call(&mut self, req: hyper::Request<Req>) -> Self::Future {
-        self.inner.lock().unwrap().call(req)
+        self.inner.lock().expect("lock poisoned").call(req)
     }
 }
 
@@ -225,7 +224,7 @@ where
     type Future = S::Future;
 
     fn call(&self, req: hyper::Request<Req>) -> Self::Future {
-        self.inner.lock().unwrap().call(req)
+        self.inner.lock().expect("lock poisoned").call(req)
     }
 }
 

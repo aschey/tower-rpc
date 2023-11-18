@@ -36,11 +36,11 @@ pub async fn main() -> Result<(), BoxError> {
                 .layer_fn(|inner| {
                     HttpAdapter::new(inner, CodecSerializer::new(Codec::Json), context.clone())
                 })
-                .service(
-                    RouteService::with_keys()
-                        .with_route(Method::POST, "/test1", handler.clone())
-                        .unwrap(),
-                )
+                .service(RouteService::with_keys().with_route(
+                    Method::POST,
+                    "/test1",
+                    handler.clone(),
+                ))
         }),
     );
 

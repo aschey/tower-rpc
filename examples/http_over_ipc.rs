@@ -68,9 +68,7 @@ pub async fn main() -> Result<(), BoxError> {
 
             RouteService::with_keys()
                 .with_route(Method::GET, "/test1", svc1)
-                .expect("Failed to create route")
                 .with_route(Method::POST, "/test2", svc2)
-                .expect("Failed to create route")
         }),
     );
 

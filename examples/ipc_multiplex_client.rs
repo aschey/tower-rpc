@@ -18,9 +18,9 @@ pub async fn main() -> Result<(), BoxError> {
     let mut i = 0;
 
     loop {
-        let mut client_ = client.clone();
+        let mut client = client.clone();
         tokio::task::spawn(async move {
-            let res = client_.call_ready(i).await.unwrap();
+            let res = client.call_ready(i).await.expect("failed to send");
             println!("Ping {i} Pong {res}");
         });
 

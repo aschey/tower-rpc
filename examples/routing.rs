@@ -33,9 +33,7 @@ pub async fn main() -> Result<(), BoxError> {
 
             RouteService::default()
                 .with_route("/test1", svc1)
-                .unwrap()
                 .with_route("/test2", svc2)
-                .unwrap()
         }),
     );
 

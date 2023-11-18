@@ -27,7 +27,7 @@ pub async fn main() -> Result<(), BoxError> {
         while let Some((req, res)) = request_stream.next().await {
             println!("Ping {}", req.value);
             i += 1;
-            res.respond(i).unwrap();
+            res.respond(i).expect("failed to send");
         }
     });
 
