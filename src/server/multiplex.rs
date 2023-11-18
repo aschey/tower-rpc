@@ -49,32 +49,29 @@ where
                 .make_service(())
                 .await
                 .map_err(|e| format!("{e:?}"))?;
-            context.add_service((
-                "rpc_handler".to_owned(),
-                move |context: ServiceContext| async move {
-                    let service = ServiceBuilder::default()
-                        .layer_fn(MultiplexService::new)
-                        .layer_fn(|inner| RequestService::new(context.clone(), inner))
-                        .service(handler);
-                    if let Ok(res) = multiplex::Server::new(stream, service)
-                        .cancel_on_shutdown(&context.cancellation_token())
-                        .await
-                    {
-                        return match res {
-                            Ok(()) => Ok(()),
-                            Err(multiplex::server::Error::Service(e)) => Err(format!("{e:?}"))?,
-                            Err(e) => {
-                                // Transport errors can happen if the client disconnects so they may
-                                // be expected
-                                info!("Transport failure: {e:?}");
-                                Ok(())
-                            }
-                        };
-                    }
+            context.add_service(("rpc_handler", move |context: ServiceContext| async move {
+                let service = ServiceBuilder::default()
+                    .layer_fn(MultiplexService::new)
+                    .layer_fn(|inner| RequestService::new(context.clone(), inner))
+                    .service(handler);
+                if let Ok(res) = multiplex::Server::new(stream, service)
+                    .cancel_on_shutdown(&context.cancellation_token())
+                    .await
+                {
+                    return match res {
+                        Ok(()) => Ok(()),
+                        Err(multiplex::server::Error::Service(e)) => Err(format!("{e:?}"))?,
+                        Err(e) => {
+                            // Transport errors can happen if the client disconnects so they may
+                            // be expected
+                            info!("Transport failure: {e:?}");
+                            Ok(())
+                        }
+                    };
+                }
 
-                    Ok(())
-                },
-            ));
+                Ok(())
+            }));
         }
         Ok(())
     }

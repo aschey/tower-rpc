@@ -74,28 +74,25 @@ where
                 .await
                 .wrap_err("Error making service")?;
 
-            context.add_service((
-                "http_handler".to_owned(),
-                move |context: ServiceContext| async move {
-                    let service = ServiceBuilder::default()
-                        .layer_fn(|inner| ServiceWrapper {
-                            inner,
-                            _phantom: Default::default(),
-                        })
-                        .service(Arc::new(Mutex::new(handler)));
+            context.add_service(("http_handler", move |context: ServiceContext| async move {
+                let service = ServiceBuilder::default()
+                    .layer_fn(|inner| ServiceWrapper {
+                        inner,
+                        _phantom: Default::default(),
+                    })
+                    .service(Arc::new(Mutex::new(handler)));
 
-                    if let Ok(Err(e)) =
-                        hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
-                            .serve_connection(TokioIo::new(stream), service)
-                            .cancel_on_shutdown(&context.cancellation_token())
-                            .await
-                    {
-                        error!("Error serving connection: {e:?}");
-                    }
+                if let Ok(Err(e)) =
+                    hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                        .serve_connection(TokioIo::new(stream), service)
+                        .cancel_on_shutdown(&context.cancellation_token())
+                        .await
+                {
+                    error!("Error serving connection: {e:?}");
+                }
 
-                    Ok(())
-                },
-            ));
+                Ok(())
+            }));
         }
 
         Ok(())
@@ -239,7 +236,7 @@ where
 
     fn call(&self, req: http::Request<hyper::body::Incoming>) -> Self::Future {
         let mut inner = self.inner.clone();
-        let mut deser = self.serializer.clone();
+        let mut serializer = self.serializer.clone();
         let context = self.context.clone();
         Box::pin(async move {
             let res = inner
@@ -248,7 +245,7 @@ where
                     value: RoutedRequest {
                         route: req.uri().to_string(),
                         key: req.method().to_owned().into(),
-                        value: Pin::new(&mut deser)
+                        value: Pin::new(&mut serializer)
                             .deserialize(&BytesMut::from(
                                 req.into_body()
                                     .collect()
@@ -264,7 +261,7 @@ where
                 .await?;
             Ok(hyper::Response::builder()
                 .body(Full::new(
-                    Pin::new(&mut deser)
+                    Pin::new(&mut serializer)
                         .serialize(&res)
                         .wrap_err("Error serializing response")?,
                 ))
