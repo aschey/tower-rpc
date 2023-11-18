@@ -1,10 +1,10 @@
 use std::fmt::Debug;
-use std::future;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::Poll;
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+use std::{future, io};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
@@ -23,7 +23,7 @@ use tracing_tree::HierarchicalLayer;
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let layer = HierarchicalLayer::default()
-        .with_writer(std::io::stdout)
+        .with_writer(io::stdout)
         .with_indent_lines(true)
         .with_indent_amount(2)
         // .with_thread_names(true)
@@ -85,10 +85,7 @@ impl tower::Service<Request<usize>> for Handler {
     type Error = BoxError;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -123,7 +120,7 @@ where
 
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.client.poll_ready(cx)
     }
 

@@ -1,4 +1,5 @@
-use std::task::Poll;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures::Stream;
 use pin_project::pin_project;
@@ -40,10 +41,7 @@ where
     I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
 {
     type Item = Result<CodecStream<B::Req, B::Res, B::StreamErr, B::SinkErr>, E>;
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
         match this.inner.poll_next(cx) {
             Poll::Ready(Some(Ok(stream))) => {

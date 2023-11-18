@@ -1,6 +1,7 @@
 use std::io;
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::LengthDelimitedCodec;
 
@@ -12,8 +13,8 @@ pub fn serde_codec<Req, Res>(
     codec: Codec,
 ) -> CodecStream<Req, Res, io::Error, io::Error>
 where
-    Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
-    Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+    Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
+    Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
 {
     let stream = tokio_util::codec::Framed::new(incoming, LengthDelimitedCodec::new());
 
@@ -40,8 +41,8 @@ impl<Req, Res> SerdeCodec<Req, Res> {
         incoming: impl AsyncRead + AsyncWrite + Send + Unpin + 'static,
     ) -> CodecStream<Res, Req, io::Error, io::Error>
     where
-        Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
-        Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+        Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
+        Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
     {
         serde_codec(incoming, self.codec)
     }
@@ -49,8 +50,8 @@ impl<Req, Res> SerdeCodec<Req, Res> {
 
 impl<Req, Res> CodecBuilder for SerdeCodec<Req, Res>
 where
-    Req: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
-    Res: serde::Serialize + for<'de> serde::Deserialize<'de> + Unpin + Send + 'static,
+    Req: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
+    Res: Serialize + for<'de> Deserialize<'de> + Unpin + Send + 'static,
 {
     type Req = Req;
     type Res = Res;

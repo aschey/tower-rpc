@@ -1,7 +1,7 @@
 use std::future;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::Poll;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
@@ -68,10 +68,7 @@ impl tower::Service<RouteMatch<Message, Keyed<Method>>> for Handler {
     type Error = BoxError;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 

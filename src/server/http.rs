@@ -4,32 +4,31 @@ use std::io;
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::Poll;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use background_service::error::BoxedError;
 use background_service::{BackgroundService, ServiceContext};
 use bytes::{Bytes, BytesMut};
-use eyre::Context;
+use eyre::Context as EyreContext;
 use futures::{Future, Stream};
 use futures_cancel::FutureExt;
 use http::Method;
 use http_body_util::{BodyExt, Full};
-use hyper_util::rt::TokioIo;
+use hyper::body::{Body, Incoming};
+use hyper_util::rt::{TokioExecutor, TokioIo};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Deserializer, Serializer};
 use tokio_stream::StreamExt;
 use tower::{BoxError, MakeService, Service, ServiceBuilder};
-use tracing::{debug, error};
+use tracing::error;
 
 use crate::{Keyed, Request, RoutedRequest};
 
 pub struct Server<K, H, S, I, E, Res>
 where
-    K: MakeService<(), hyper::Request<hyper::body::Incoming>, Service = H>,
-    H: Service<hyper::Request<hyper::body::Incoming>, Response = http::Response<Res>>
-        + Send
-        + 'static,
+    K: MakeService<(), hyper::Request<Incoming>, Service = H>,
+    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Send + 'static,
 {
     incoming: S,
     handler: K,
@@ -39,21 +38,19 @@ where
 
 impl<K, H, S, I, E, Res> Server<K, H, S, I, E, Res>
 where
-    K: MakeService<(), hyper::Request<hyper::body::Incoming>, Service = H> + Send,
+    K: MakeService<(), hyper::Request<Incoming>, Service = H> + Send,
     K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
-    H: Service<hyper::Request<hyper::body::Incoming>, Response = http::Response<Res>>
-        + Send
-        + 'static,
+    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Send + 'static,
     H::Future: Send + 'static,
     H::Error: Into<Box<dyn Error + Send + Sync>>,
     S: Stream<Item = Result<I, E>> + Send,
     I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     E: Send,
-    Res: hyper::body::Body + Send + 'static,
-    <Res as hyper::body::Body>::Error: std::error::Error + Send + Sync,
-    <Res as hyper::body::Body>::Data: std::marker::Send,
+    Res: Body + Send + 'static,
+    <Res as Body>::Error: Error + Send + Sync,
+    <Res as Body>::Data: Send,
 {
     pub fn new(incoming: S, handler: K) -> Self {
         Self {
@@ -79,7 +76,7 @@ where
 
             context.add_service((
                 "http_handler".to_owned(),
-                move |_: ServiceContext| async move {
+                move |context: ServiceContext| async move {
                     let service = ServiceBuilder::default()
                         .layer_fn(|inner| ServiceWrapper {
                             inner,
@@ -87,17 +84,13 @@ where
                         })
                         .service(Arc::new(Mutex::new(handler)));
 
-                    if let Err(e) = hyper::server::conn::http1::Builder::new()
-                        .serve_connection(TokioIo::new(stream), service)
-                        .await
+                    if let Ok(Err(e)) =
+                        hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
+                            .serve_connection(TokioIo::new(stream), service)
+                            .cancel_on_shutdown(&context.cancellation_token())
+                            .await
                     {
-                        if e.is_canceled() {
-                            debug!("HTTP stream cancelled");
-                        } else if e.is_closed() {
-                            debug!("HTTP stream closed");
-                        } else {
-                            error!("Error serving connection: {e:?}");
-                        }
+                        error!("Error serving connection: {e:?}");
                     }
 
                     Ok(())
@@ -112,21 +105,19 @@ where
 #[async_trait]
 impl<K, H, S, I, E, Res> BackgroundService for Server<K, H, S, I, E, Res>
 where
-    K: MakeService<(), hyper::Request<hyper::body::Incoming>, Service = H> + Send,
+    K: MakeService<(), hyper::Request<Incoming>, Service = H> + Send,
     K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
-    H: Service<hyper::Request<hyper::body::Incoming>, Response = http::Response<Res>>
-        + Send
-        + 'static,
+    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Send + 'static,
     H::Future: Send + 'static,
     H::Error: Into<Box<dyn Error + Send + Sync>>,
     S: Stream<Item = Result<I, E>> + Send,
     I: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     E: Send,
-    Res: hyper::body::Body + Send + 'static,
-    <Res as hyper::body::Body>::Error: std::error::Error + Send + Sync,
-    <Res as hyper::body::Body>::Data: std::marker::Send,
+    Res: Body + Send + 'static,
+    <Res as Body>::Error: Error + Send + Sync,
+    <Res as Body>::Data: Send,
 {
     fn name(&self) -> &str {
         "rpc_server"
@@ -163,7 +154,7 @@ where
     }
 }
 
-impl<S, D, M, Req> Service<hyper::Request<hyper::body::Incoming>> for HttpAdapter<S, D, M, Req>
+impl<S, D, M, Req> Service<hyper::Request<Incoming>> for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
     S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
@@ -172,7 +163,7 @@ where
         + Deserializer<Req, Error = io::Error>
         + Clone
         + Unpin
-        + std::fmt::Debug
+        + Debug
         + Send
         + 'static,
     M: From<Method> + Send,
@@ -181,11 +172,11 @@ where
     type Response = http::Response<Full<Bytes>>;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, _cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: hyper::Request<hyper::body::Incoming>) -> Self::Future {
+    fn call(&mut self, req: hyper::Request<Incoming>) -> Self::Future {
         hyper::service::Service::call(self, req)
     }
 }
@@ -206,7 +197,7 @@ where
     type Response = S::Response;
     type Future = S::Future;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.lock().expect("lock poisoned").poll_ready(cx)
     }
 
@@ -228,8 +219,7 @@ where
     }
 }
 
-impl<S, D, M, Req> hyper::service::Service<hyper::Request<hyper::body::Incoming>>
-    for HttpAdapter<S, D, M, Req>
+impl<S, D, M, Req> hyper::service::Service<hyper::Request<Incoming>> for HttpAdapter<S, D, M, Req>
 where
     Req: Send,
     S: Service<Request<RoutedRequest<Req, Keyed<M>>>, Error = BoxError> + Clone + Send + 'static,
@@ -238,7 +228,7 @@ where
         + Deserializer<Req, Error = io::Error>
         + Clone
         + Unpin
-        + std::fmt::Debug
+        + Debug
         + Send
         + 'static,
     M: From<Method> + Send,

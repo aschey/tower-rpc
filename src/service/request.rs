@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{Context, Poll};
 
 use background_service::ServiceContext;
 use futures::Future;
@@ -33,7 +33,7 @@ where
     type Error = S::Error;
     type Response = Res;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 

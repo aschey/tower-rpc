@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
-use std::task::Poll;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures::Stream;
 use pin_project::pin_project;
@@ -29,10 +30,7 @@ impl TcpTransport {
 impl Stream for TcpTransport {
     type Item = Result<TcpStream, io::Error>;
 
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         match self.project().listener.poll_accept(cx) {
             Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(Ok(stream))),
             Poll::Ready(Err(_)) => Poll::Ready(None),

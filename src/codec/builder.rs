@@ -52,8 +52,8 @@ where
     F: Fn(Box<dyn AsyncReadWrite>) -> CodecStream<Req, Res, StreamErr, SinkErr> + Send,
     Req: Send,
     Res: Send,
-    StreamErr: std::error::Error + Send + Sync + 'static,
-    SinkErr: std::error::Error + Send + Sync + 'static,
+    StreamErr: Error + Send + Sync + 'static,
+    SinkErr: Error + Send + Sync + 'static,
 {
     type Req = Req;
     type Res = Res;

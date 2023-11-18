@@ -2,6 +2,7 @@ use std::convert::Infallible;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
 use futures::{future, Future, Stream};
@@ -10,7 +11,7 @@ use pin_project::pin_project;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{self};
 use tokio::sync::oneshot;
-use tower::BoxError;
+use tower::{BoxError, Service};
 
 use crate::Request;
 
@@ -27,7 +28,7 @@ where
 pub fn make_service_fn<F, S, R>(f: F) -> MakeServiceFn<F, S, R>
 where
     F: Fn() -> S,
-    S: tower::Service<R>,
+    S: Service<R>,
 {
     MakeServiceFn {
         f,
@@ -35,19 +36,16 @@ where
     }
 }
 
-impl<F, S, R> tower::Service<()> for MakeServiceFn<F, S, R>
+impl<F, S, R> Service<()> for MakeServiceFn<F, S, R>
 where
     F: Fn() -> S,
-    S: tower::Service<R>,
+    S: Service<R>,
 {
     type Error = Infallible;
     type Response = S;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
@@ -70,10 +68,7 @@ impl<Req> tower::Service<()> for ServiceChannel<Req> {
     type Response = ServiceSender<Req>;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
@@ -89,15 +84,12 @@ pub struct ServiceSender<Req> {
     tx: mpsc::UnboundedSender<Request<Req>>,
 }
 
-impl<Req: Debug> tower::Service<Request<Req>> for ServiceSender<Req> {
+impl<Req: Debug> Service<Request<Req>> for ServiceSender<Req> {
     type Error = SendError<Request<Req>>;
     type Response = ();
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
@@ -140,10 +132,7 @@ impl<Req, Res> tower::Service<()> for RequestHandlerStreamFactory<Req, Res> {
     type Response = RequestHandlerStream<Req, Res>;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
@@ -161,7 +150,7 @@ pub struct RequestHandlerStream<Req, Res> {
     request_tx: mpsc::UnboundedSender<(Request<Req>, Responder<Res>)>,
 }
 
-impl<Req, Res> tower::Service<Request<Req>> for RequestHandlerStream<Req, Res>
+impl<Req, Res> Service<Request<Req>> for RequestHandlerStream<Req, Res>
 where
     Req: Send + Sync + Debug + 'static,
     Res: Send + Sync + Debug + 'static,
@@ -170,10 +159,7 @@ where
     type Response = Res;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(
-        &mut self,
-        _cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
@@ -207,10 +193,7 @@ pub struct RequestStream<Req, Res> {
 impl<Req, Res> Stream for RequestStream<Req, Res> {
     type Item = (Req, Responder<Res>);
 
-    fn poll_next(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.project().request_rx.poll_recv(cx)
     }
 }
