@@ -35,9 +35,7 @@ eyre = "0.6"
 background-service = { git = "https://github.com/aschey/background-service-rs", rev = "a2ad6a6d0c792e54ae7d6ab9fe36953ab4ce4e1c", features = [
     "signal",
 ] }
-tower-http = { git = "https://github.com/tower-rs/tower-http", rev = "602f06f248211b6eb5af59e1c7ae10c9177e25da", features = [
-    "trace",
-] }
+tower-http = { version = "0.5", features = ["trace"] }
 http = "1.0.0"
 criterion = { version = "0.5.1", features = ["async_tokio", "html_reports"] }
 http-serde = { git = "https://gitlab.com/aschey/http-serde", rev = "78fb8aa8" }
