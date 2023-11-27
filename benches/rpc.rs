@@ -27,6 +27,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
         .enable_all()
         .worker_threads(4)
         .build()?;
+    let _guard = rt.enter();
 
     let cancellation_token = CancellationToken::default();
     let manager =
