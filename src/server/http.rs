@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::io;
 use std::marker::PhantomData;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
@@ -17,6 +16,7 @@ use http::Method;
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Body, Incoming};
 use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::service::TowerToHyperService;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_serde::{Deserializer, Serializer};
 use tokio_stream::StreamExt;
@@ -42,7 +42,7 @@ where
     K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
-    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Send + 'static,
+    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Clone + Send + 'static,
     H::Future: Send + 'static,
     H::Error: Into<Box<dyn Error + Send + Sync>>,
     S: Stream<Item = Result<I, E>> + Send,
@@ -76,11 +76,8 @@ where
 
             context.add_service(("http_handler", move |context: ServiceContext| async move {
                 let service = ServiceBuilder::default()
-                    .layer_fn(|inner| ServiceWrapper {
-                        inner,
-                        _phantom: Default::default(),
-                    })
-                    .service(Arc::new(Mutex::new(handler)));
+                    .layer_fn(|inner| TowerToHyperService::new(inner))
+                    .service(handler);
 
                 if let Ok(Err(e)) =
                     hyper_util::server::conn::auto::Builder::new(TokioExecutor::new())
@@ -106,7 +103,7 @@ where
     K::MakeError: Error + Send + Sync + 'static,
     K::Future: Send,
     K::MakeError: Debug,
-    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Send + 'static,
+    H: Service<hyper::Request<Incoming>, Response = http::Response<Res>> + Clone + Send + 'static,
     H::Future: Send + 'static,
     H::Error: Into<Box<dyn Error + Send + Sync>>,
     S: Stream<Item = Result<I, E>> + Send,
@@ -125,6 +122,7 @@ where
     }
 }
 
+#[derive(Clone)]
 pub struct HttpAdapter<S, D, M, Req>
 where
     S: Service<Request<RoutedRequest<Req, Keyed<M>>>> + Clone + Send,
@@ -175,44 +173,6 @@ where
 
     fn call(&mut self, req: hyper::Request<Incoming>) -> Self::Future {
         hyper::service::Service::call(self, req)
-    }
-}
-
-struct ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>>,
-{
-    inner: Arc<Mutex<S>>,
-    _phantom: PhantomData<Req>,
-}
-
-impl<S, Req, Res> Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
-{
-    type Error = S::Error;
-    type Response = S::Response;
-    type Future = S::Future;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.lock().expect("lock poisoned").poll_ready(cx)
-    }
-
-    fn call(&mut self, req: hyper::Request<Req>) -> Self::Future {
-        self.inner.lock().expect("lock poisoned").call(req)
-    }
-}
-
-impl<S, Req, Res> hyper::service::Service<hyper::Request<Req>> for ServiceWrapper<S, Req>
-where
-    S: Service<hyper::Request<Req>, Response = http::Response<Res>>,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = S::Future;
-
-    fn call(&self, req: hyper::Request<Req>) -> Self::Future {
-        self.inner.lock().expect("lock poisoned").call(req)
     }
 }
 
