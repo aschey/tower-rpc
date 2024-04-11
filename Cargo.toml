@@ -4,43 +4,43 @@ name = "tower-rpc"
 version = "0.1.0"
 
 [dependencies]
-async-trait = "0.1"
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "1c1b4e5c3e11e3136c981e9a040817eed19b5507" }
+hyper-util = { version = "0.1.3", features = [
+    "tokio",
+    "service",
+    "server-auto",
+], optional = true }
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "15db3730c47a7bd6221c65cbb68b2a9373ff41f0" }
 bytes = "1"
 futures = "0.3"
 futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "d2c20b78ff5c9e85aa892b51971cc1c1b6b22351" }
-matchit = { version = "0.7", optional = true }
+matchit = { version = "0.8", optional = true }
 parity-tokio-ipc = { git = "https://github.com/aschey/parity-tokio-ipc", rev = "588198a0abb32a79f6f3e656ff0472008e4ba9b8", optional = true }
 pin-project = "1"
 serde = { version = "1", features = ["derive"], optional = true }
 slab = { version = "0.4", optional = true }
 thiserror = "1"
 tokio = { version = "1", features = ["sync"] }
-tokio-serde = { version = "0.8", optional = true }
+tokio-serde = { version = "0.9", optional = true }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-tower = "0.7.0-rc4"
 tokio-util = { version = "0.7", features = ["codec"] }
 tower = { version = "0.4", features = ["make", "util"] }
 tracing = "0.1"
-hyper = { version = "1.0.1", features = ["full"], optional = true }
-hyper-util = { git = "https://github.com/hyperium/hyper-util", rev = "bca85f782007de1cc72a4b0365cdfa1ef28afd5e", features = [
-    "tokio",
-    "server-auto",
-], optional = true }
-http = { version = "1.0.0", optional = true }
-http-body-util = { version = "0.1.0", optional = true }
+hyper = { version = "1.2", features = ["full"], optional = true }
+http = { version = "1.1", optional = true }
+http-body-util = { version = "0.1", optional = true }
 eyre = "0.6"
 
 [dev-dependencies]
-background-service = { git = "https://github.com/aschey/background-service-rs", rev = "1c1b4e5c3e11e3136c981e9a040817eed19b5507", features = [
+background-service = { git = "https://github.com/aschey/background-service-rs", rev = "15db3730c47a7bd6221c65cbb68b2a9373ff41f0", features = [
     "signal",
 ] }
 tower-http = { version = "0.5", features = ["trace"] }
-http = "1.0.0"
+http = "1.1"
 criterion = { version = "0.5.1", features = ["async_tokio", "html_reports"] }
-http-serde = { git = "https://gitlab.com/aschey/http-serde", rev = "78fb8aa8" }
+http-serde = { version = "2" }
 rand = { version = "0.8.5", features = ["small_rng"] }
-tokio = { version = "1.34.0", features = [
+tokio = { version = "1.37.0", features = [
     "rt-multi-thread",
     "macros",
     "time",

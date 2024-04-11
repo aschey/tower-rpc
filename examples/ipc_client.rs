@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use tower::BoxError;
+use tower::{BoxError, Service, ServiceExt};
 use tower_rpc::transport::ipc::{self, ServerId};
-use tower_rpc::{Client, Codec, ReadyServiceExt, SerdeCodec};
+use tower_rpc::{Client, Codec, SerdeCodec};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -13,7 +13,7 @@ pub async fn main() -> Result<(), BoxError> {
             .create_pipeline();
     let mut i = 0;
     loop {
-        i = client.call_ready(i).await?;
+        i = client.ready().await?.call(i).await?;
         println!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

@@ -3,9 +3,9 @@ use std::time::Duration;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use tower::buffer::Buffer;
-use tower::BoxError;
+use tower::{BoxError, Service, ServiceExt};
 use tower_rpc::transport::ipc::{self, ServerId};
-use tower_rpc::{Client, Codec, ReadyServiceExt, SerdeCodec, Tagged};
+use tower_rpc::{Client, Codec, SerdeCodec, Tagged};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -20,8 +20,9 @@ pub async fn main() -> Result<(), BoxError> {
     loop {
         let mut client = client.clone();
         tokio::task::spawn(async move {
-            let res = client.call_ready(i).await.expect("failed to send");
+            let res = client.ready().await?.call(i).await.expect("failed to send");
             println!("Ping {i} Pong {res}");
+            Ok::<_, BoxError>(())
         });
 
         i += 1;

@@ -2,9 +2,9 @@ use std::time::Duration;
 
 use background_service::BackgroundServiceManager;
 use tokio_util::sync::CancellationToken;
-use tower::BoxError;
+use tower::{BoxError, Service, ServiceExt};
 use tower_rpc::transport::local::{self};
-use tower_rpc::{channel, Client, ReadyServiceExt, Server};
+use tower_rpc::{channel, Client, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -31,7 +31,7 @@ pub async fn main() -> Result<(), BoxError> {
     let mut i = 0;
 
     loop {
-        client.call_ready(i).await?;
+        client.ready().await?.call(i).await?;
         i += 1;
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

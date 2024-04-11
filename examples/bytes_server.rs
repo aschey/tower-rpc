@@ -1,6 +1,5 @@
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 use bytes::{Bytes, BytesMut};
 use futures::future;
@@ -37,7 +36,6 @@ pub async fn main() -> Result<(), BoxError> {
 #[derive(Default)]
 struct Handler;
 
-#[async_trait]
 impl tower::Service<Request<BytesMut>> for Handler {
     type Response = Bytes;
     type Error = BoxError;

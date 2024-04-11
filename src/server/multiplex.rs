@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use background_service::error::BoxedError;
 use background_service::{BackgroundService, ServiceContext};
 use futures::{Sink, Stream, TryStream};
@@ -77,7 +76,6 @@ where
     }
 }
 
-#[async_trait]
 impl<K, H, S, I, E, Req, Res> BackgroundService for Server<K, H, S, I, E, Multiplex, Req, Res>
 where
     K: MakeService<(), Request<Req>, Service = H> + Send,

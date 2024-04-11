@@ -6,7 +6,6 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use background_service::ServiceContext;
 use futures::Future;
 use matchit::{InsertError, MatchError, Params, Router};
@@ -225,18 +224,16 @@ impl<T, K: RouteKey> RouteMatch<T, K> {
     }
 }
 
-#[async_trait]
 pub trait CallRoute<Request>: Service<RoutedRequest<Request, Unkeyed>> {
     fn call_route(&mut self, route: impl Into<String>, request: Request) -> Self::Future;
 
-    async fn call_route_ready(
+    fn call_route_ready(
         &mut self,
         route: impl Into<String> + Send,
         request: Request,
-    ) -> Result<Self::Response, Self::Error>;
+    ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send;
 }
 
-#[async_trait]
 pub trait CallKeyedRoute<Request, K>: Service<RoutedRequest<Request, Keyed<K>>> {
     fn call_route(
         &mut self,
@@ -245,15 +242,14 @@ pub trait CallKeyedRoute<Request, K>: Service<RoutedRequest<Request, Keyed<K>>> 
         request: Request,
     ) -> Self::Future;
 
-    async fn call_route_ready(
+    fn call_route_ready(
         &mut self,
         key: impl Into<K> + Send,
         route: impl Into<String> + Send,
         request: Request,
-    ) -> Result<Self::Response, Self::Error>;
+    ) -> impl Future<Output = Result<Self::Response, Self::Error>> + Send;
 }
 
-#[async_trait]
 impl<Request, S> CallRoute<Request> for S
 where
     Request: Send + 'static,
@@ -279,7 +275,6 @@ where
     }
 }
 
-#[async_trait]
 impl<Request, S, K> CallKeyedRoute<Request, K> for S
 where
     Request: Send + 'static,

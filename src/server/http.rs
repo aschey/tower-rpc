@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use background_service::error::BoxedError;
 use background_service::{BackgroundService, ServiceContext};
 use bytes::{Bytes, BytesMut};
@@ -96,7 +95,6 @@ where
     }
 }
 
-#[async_trait]
 impl<K, H, S, I, E, Res> BackgroundService for Server<K, H, S, I, E, Res>
 where
     K: MakeService<(), hyper::Request<Incoming>, Service = H> + Send,
@@ -117,7 +115,7 @@ where
         "rpc_server"
     }
 
-    async fn run(mut self, context: ServiceContext) -> Result<(), BoxedError> {
+    async fn run(self, context: ServiceContext) -> Result<(), BoxedError> {
         self.run_server(context).await
     }
 }

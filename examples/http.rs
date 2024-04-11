@@ -3,7 +3,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 use http::Method;
 use serde::{Deserialize, Serialize};
@@ -62,7 +61,6 @@ struct Message {
     count: usize,
 }
 
-#[async_trait]
 impl tower::Service<RouteMatch<Message, Keyed<Method>>> for Handler {
     type Response = Message;
     type Error = BoxError;

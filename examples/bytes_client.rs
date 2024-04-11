@@ -1,9 +1,9 @@
 use std::time::Duration;
 
 use bytes::Bytes;
-use tower::BoxError;
+use tower::{BoxError, Service, ServiceExt};
 use tower_rpc::transport::ipc::{self, ServerId};
-use tower_rpc::{length_delimited_codec, Client, ReadyServiceExt};
+use tower_rpc::{length_delimited_codec, Client};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -12,8 +12,8 @@ pub async fn main() -> Result<(), BoxError> {
 
     loop {
         println!("Send: ping");
-        let res = client.call_ready(Bytes::from("ping")).await?;
-        println!("Response: {}", String::from_utf8(res.to_vec())?);
+        let res = client.ready().await?.call(Bytes::from("ping")).await?;
+        println!("Response: {}", String::from_utf8(res.to_vec()).unwrap());
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

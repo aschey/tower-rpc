@@ -1,17 +1,14 @@
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
 use tokio_util::sync::CancellationToken;
-use tower::{service_fn, BoxError};
+use tower::{service_fn, BoxError, Service, ServiceExt};
 use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
 use tower_rpc::transport::{tcp, CodecTransport};
-use tower_rpc::{
-    serde_codec, Client, Codec, MakeHandler, ReadyServiceExt, Request, SerdeCodec, Server,
-};
+use tower_rpc::{serde_codec, Client, Codec, MakeHandler, Request, SerdeCodec, Server};
 
 pub fn bench_calls(c: &mut Criterion) {
     bench_inner(c).expect("Failed to run")
@@ -62,7 +59,15 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
             tokio::spawn(async move {
                 let start = Instant::now();
                 for _i in 0..iters {
-                    i = black_box(client.call_ready(i).await.expect("Failed to call service"));
+                    i = black_box(
+                        client
+                            .ready()
+                            .await
+                            .unwrap()
+                            .call(i)
+                            .await
+                            .expect("Failed to call service"),
+                    );
                 }
                 start.elapsed()
             })
@@ -104,7 +109,15 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
             tokio::spawn(async move {
                 let start = Instant::now();
                 for _i in 0..iters {
-                    i = black_box(client.call_ready(i).await.expect("Failed to call service"));
+                    i = black_box(
+                        client
+                            .ready()
+                            .await
+                            .unwrap()
+                            .call(i)
+                            .await
+                            .expect("Failed to call service"),
+                    );
                 }
                 start.elapsed()
             })
@@ -122,7 +135,6 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
 #[derive(Default)]
 struct Handler;
 
-#[async_trait]
 impl tower::Service<Request<usize>> for Handler {
     type Response = usize;
     type Error = BoxError;

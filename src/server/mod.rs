@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use async_trait::async_trait;
 use background_service::error::BoxedError;
 use background_service::{BackgroundService, ServiceContext};
 use futures::{Sink, Stream, TryStream};
@@ -16,8 +15,6 @@ use crate::{Pipeline, Request, ServerMode};
 
 #[cfg(feature = "multiplex")]
 mod multiplex;
-#[cfg(feature = "multiplex")]
-pub use multiplex::*;
 
 #[cfg(feature = "http")]
 pub mod http;
@@ -99,7 +96,6 @@ where
     }
 }
 
-#[async_trait]
 impl<K, H, S, I, E, Req, Res> BackgroundService for Server<K, H, S, I, E, Pipeline, Req, Res>
 where
     K: MakeService<(), Request<Req>, Service = H> + Send,
@@ -120,7 +116,7 @@ where
         "rpc_server"
     }
 
-    async fn run(mut self, context: ServiceContext) -> Result<(), BoxedError> {
+    async fn run(self, context: ServiceContext) -> Result<(), BoxedError> {
         self.run_pipeline(context).await
     }
 }

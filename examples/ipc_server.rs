@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 use futures::future;
 use tokio_util::sync::CancellationToken;
@@ -39,7 +38,6 @@ struct Handler {
     count: AtomicUsize,
 }
 
-#[async_trait]
 impl tower::Service<Request<usize>> for Handler {
     type Response = usize;
     type Error = BoxError;

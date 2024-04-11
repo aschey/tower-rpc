@@ -4,7 +4,6 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use async_trait::async_trait;
 use futures::{future, Future, Stream};
 use futures_cancel::FutureExt;
 use pin_project::pin_project;
@@ -198,15 +197,13 @@ impl<Req, Res> Stream for RequestStream<Req, Res> {
     }
 }
 
-#[async_trait]
 pub trait MakeHandler<Req>
 where
     Self: tower::Service<Req> + Default + Sized,
 {
-    async fn make(_: ()) -> Result<Self, Infallible>;
+    fn make(_: ()) -> impl Future<Output = Result<Self, Infallible>> + Send;
 }
 
-#[async_trait]
 impl<S, Req> MakeHandler<Req> for S
 where
     S: tower::Service<Req> + Default,

@@ -6,14 +6,13 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use std::{future, io};
 
-use async_trait::async_trait;
 use background_service::BackgroundServiceManager;
 use futures::Future;
 use tokio_util::sync::CancellationToken;
 use tower::layer::layer_fn;
-use tower::{BoxError, Service, ServiceBuilder};
+use tower::{BoxError, Service, ServiceBuilder, ServiceExt};
 use tower_rpc::transport::local::{self};
-use tower_rpc::{make_service_fn, Client, ReadyServiceExt, Request, Server};
+use tower_rpc::{make_service_fn, Client, Request, Server};
 use tracing::metadata::LevelFilter;
 use tracing::{info, span, Level};
 use tracing_subscriber::prelude::*;
@@ -68,7 +67,7 @@ pub async fn main() -> Result<(), BoxError> {
     let mut i = 0;
 
     loop {
-        i = client.call_ready(i).await?;
+        i = client.ready().await?.call(i).await?;
         info!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
@@ -79,7 +78,6 @@ struct Handler {
     count: AtomicUsize,
 }
 
-#[async_trait]
 impl tower::Service<Request<usize>> for Handler {
     type Response = usize;
     type Error = BoxError;

@@ -1,9 +1,9 @@
 use std::process::Stdio;
 use std::time::Duration;
 
-use tower::BoxError;
+use tower::{BoxError, Service, ServiceExt};
 use tower_rpc::transport::stdio::StdioTransport;
-use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, Client, Codec};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -20,7 +20,7 @@ pub async fn main() -> Result<(), BoxError> {
     let mut i = 0;
 
     loop {
-        i = client.call_ready(i).await?;
+        i = client.ready().await?.call(i).await?;
         println!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }

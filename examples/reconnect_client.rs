@@ -2,12 +2,12 @@ use std::time::Duration;
 
 use tower::reconnect::Reconnect;
 use tower::util::BoxService;
-use tower::{service_fn, BoxError, ServiceExt};
+use tower::{service_fn, BoxError, Service, ServiceExt};
 use tower_rpc::transport::tcp;
-use tower_rpc::{serde_codec, Client, Codec, ReadyServiceExt};
+use tower_rpc::{serde_codec, Client, Codec};
 
 #[tokio::main]
-pub async fn main() {
+pub async fn main() -> Result<(), BoxError> {
     let make_service = service_fn(move |_: ()| {
         Box::pin(async move {
             let socket = tcp::connect("127.0.0.1:8080").await?;
@@ -20,7 +20,7 @@ pub async fn main() {
     let mut client = Reconnect::new::<BoxService<usize, usize, BoxError>, ()>(make_service, ());
     let mut i = 0;
     loop {
-        i = match client.call_ready(i).await {
+        i = match client.ready().await?.call(i).await {
             Ok(i) => i,
             Err(e) => {
                 println!("Err {e:?}");
