@@ -1,5 +1,3 @@
-mod codec;
-pub use codec::*;
 #[cfg(feature = "server")]
 mod request_handler;
 #[cfg(feature = "server")]
@@ -18,7 +16,10 @@ mod tagged;
 #[cfg(feature = "multiplex")]
 pub use tagged::*;
 mod request;
-pub mod transport;
+pub mod transport {
+    pub use transport_async::*;
+}
+
 pub use request::*;
 #[cfg(feature = "router")]
 mod router;

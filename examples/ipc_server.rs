@@ -5,9 +5,10 @@ use background_service::BackgroundServiceManager;
 use futures::future;
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError};
+use tower_rpc::transport::codec::{Codec, CodecStream, SerdeCodec};
 use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
-use tower_rpc::transport::CodecTransport;
-use tower_rpc::{Codec, MakeHandler, Request, SerdeCodec, Server};
+use tower_rpc::transport::Bind;
+use tower_rpc::{MakeHandler, Request, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -16,14 +17,15 @@ pub async fn main() -> Result<(), BoxError> {
         cancellation_token.clone(),
         background_service::Settings::default(),
     );
-    let transport = ipc::create_endpoint(
+    let transport = ipc::Endpoint::bind(ipc::EndpointParams::new(
         ServerId("test"),
-        SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+        SecurityAttributes::allow_everyone_create()?,
         OnConflict::Overwrite,
-    )?;
+    )?)
+    .await?;
 
     let server = Server::pipeline(
-        CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
+        CodecStream::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();

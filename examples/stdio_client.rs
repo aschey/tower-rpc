@@ -2,13 +2,14 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use tower::{BoxError, Service, ServiceExt};
+use tower_rpc::transport::codec::{serde_codec, Codec};
 use tower_rpc::transport::stdio::StdioTransport;
-use tower_rpc::{serde_codec, Client, Codec};
+use tower_rpc::Client;
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
     let mut process = tokio::process::Command::new("cargo")
-        .args(["run", "--example", "stdio_server"])
+        .args(["run", "--example", "stdio_server", "--all-features"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
@@ -21,7 +22,7 @@ pub async fn main() -> Result<(), BoxError> {
 
     loop {
         i = client.ready().await?.call(i).await?;
-        println!("Pong {i}");
+        eprintln!("Pong {i}");
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

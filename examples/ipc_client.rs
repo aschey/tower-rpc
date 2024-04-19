@@ -1,12 +1,15 @@
 use std::time::Duration;
 
 use tower::{BoxError, Service, ServiceExt};
+use tower_rpc::transport::codec::{Codec, SerdeCodec};
 use tower_rpc::transport::ipc::{self, ServerId};
-use tower_rpc::{Client, Codec, SerdeCodec};
+use tower_rpc::transport::Connect;
+use tower_rpc::Client;
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
-    let client_transport = ipc::connect(ServerId("test")).await?;
+    let client_transport =
+        ipc::Connection::connect(ipc::ConnectionParams::new(ServerId("test"))?).await?;
 
     let mut client =
         Client::new(SerdeCodec::<usize, usize>::new(Codec::Bincode).client(client_transport))

@@ -6,7 +6,7 @@ use std::time::Duration;
 use background_service::BackgroundServiceManager;
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, Service, ServiceExt};
-use tower_rpc::transport::local::{self};
+use tower_rpc::transport::local;
 use tower_rpc::{Client, MakeHandler, Request, Server};
 
 #[tokio::main]

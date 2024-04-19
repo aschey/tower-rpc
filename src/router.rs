@@ -30,18 +30,22 @@ impl<T> RouteKey for Keyed<T> {
     type Key = T;
 }
 
-#[cfg(feature = "serde-codec")]
+#[cfg(feature = "codec")]
 pub fn routed_codec<Req, Res>(
-    codec: crate::Codec,
-) -> crate::SerdeCodec<RoutedRequest<Req, Unkeyed>, Res> {
-    crate::SerdeCodec::<RoutedRequest<Req, Unkeyed>, Res>::new(codec)
+    codec: transport_async::codec::Codec,
+) -> transport_async::codec::SerdeCodec<RoutedRequest<Req, Unkeyed>, Res> {
+    use transport_async::codec::SerdeCodec;
+
+    SerdeCodec::<RoutedRequest<Req, Unkeyed>, Res>::new(codec)
 }
 
-#[cfg(feature = "serde-codec")]
+#[cfg(feature = "codec")]
 pub fn keyed_codec<Req, Res, K>(
-    codec: crate::Codec,
-) -> crate::SerdeCodec<RoutedRequest<Req, Keyed<K>>, Res> {
-    crate::SerdeCodec::<RoutedRequest<Req, Keyed<K>>, Res>::new(codec)
+    codec: transport_async::codec::Codec,
+) -> transport_async::codec::SerdeCodec<RoutedRequest<Req, Keyed<K>>, Res> {
+    use transport_async::codec::SerdeCodec;
+
+    SerdeCodec::<RoutedRequest<Req, Keyed<K>>, Res>::new(codec)
 }
 
 #[derive(Clone)]
@@ -203,7 +207,7 @@ where
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(feature = "serde-codec", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "codec", derive(serde::Serialize, serde::Deserialize))]
 pub struct RoutedRequest<T, K: RouteKey> {
     pub route: String,
     pub key: K::Key,

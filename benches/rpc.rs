@@ -6,9 +6,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use futures::future;
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, Service, ServiceExt};
+use tower_rpc::transport::codec::{serde_codec, Codec, CodecStream, SerdeCodec};
 use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
-use tower_rpc::transport::{tcp, CodecTransport};
-use tower_rpc::{serde_codec, Client, Codec, MakeHandler, Request, SerdeCodec, Server};
+use tower_rpc::transport::{tcp, Bind, Connect};
+use tower_rpc::{Client, MakeHandler, Request, Server};
 
 pub fn bench_calls(c: &mut Criterion) {
     bench_inner(c).expect("Failed to run")
@@ -31,14 +32,15 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
         BackgroundServiceManager::new(cancellation_token, background_service::Settings::default());
     let mut context = manager.get_context();
     rt.block_on(async {
-        let transport = ipc::create_endpoint(
+        let transport = ipc::Endpoint::bind(ipc::EndpointParams::new(
             ServerId("test"),
-            SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+            SecurityAttributes::allow_everyone_create()?,
             OnConflict::Overwrite,
-        )?;
+        )?)
+        .await?;
 
         let server = Server::pipeline(
-            CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
+            CodecStream::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
         context.add_service(server);
@@ -47,9 +49,10 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
 
     group.bench_function("ipc", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = ipc::connect(ServerId("test"))
-                .await
-                .expect("Failed to connect");
+            let client_transport =
+                ipc::Connection::connect(ipc::ConnectionParams::new(ServerId("test")).unwrap())
+                    .await
+                    .unwrap();
             let mut client = Client::new(serde_codec::<usize, usize>(
                 client_transport,
                 Codec::Bincode,
@@ -84,10 +87,10 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
     let mut context = manager.get_context();
 
     rt.block_on(async move {
-        let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
+        let transport = tcp::Endpoint::bind("127.0.0.1:8080".parse()?).await?;
 
         let server = Server::pipeline(
-            CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
+            CodecStream::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
             service_fn(Handler::make),
         );
         context.add_service(server);
@@ -97,7 +100,7 @@ fn bench_inner(c: &mut Criterion) -> Result<(), BoxError> {
 
     group.bench_function("tcp", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
-            let client_transport = tcp::connect("127.0.0.1:8080")
+            let client_transport = tcp::Connection::connect("127.0.0.1:8080".parse().unwrap())
                 .await
                 .expect("Failed to connect");
             let mut client = Client::new(serde_codec::<usize, usize>(

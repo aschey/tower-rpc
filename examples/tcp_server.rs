@@ -5,8 +5,9 @@ use std::task::{Context, Poll};
 use background_service::BackgroundServiceManager;
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError};
-use tower_rpc::transport::{tcp, CodecTransport};
-use tower_rpc::{Codec, MakeHandler, Request, SerdeCodec, Server};
+use tower_rpc::transport::codec::{Codec, CodecStream, SerdeCodec};
+use tower_rpc::transport::{tcp, Bind};
+use tower_rpc::{MakeHandler, Request, Server};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -15,10 +16,10 @@ pub async fn main() -> Result<(), BoxError> {
         cancellation_token.clone(),
         background_service::Settings::default(),
     );
-    let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
+    let transport = tcp::Endpoint::bind("127.0.0.1:8080".parse()?).await?;
 
     let server = Server::pipeline(
-        CodecTransport::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
+        CodecStream::new(transport, SerdeCodec::<usize, usize>::new(Codec::Bincode)),
         service_fn(Handler::make),
     );
     let mut context = manager.get_context();

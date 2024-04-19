@@ -30,6 +30,7 @@ hyper = { version = "1.2", features = ["full"], optional = true }
 http = { version = "1.1", optional = true }
 http-body-util = { version = "0.1", optional = true }
 eyre = "0.6"
+transport-async = { git = "https://github.com/aschey/transport-async-rs", rev = "568202214362957fe495b6fc59103121b99ddbf5" }
 
 [dev-dependencies]
 background-service = { git = "https://github.com/aschey/background-service-rs", rev = "15db3730c47a7bd6221c65cbb68b2a9373ff41f0", features = [
@@ -67,28 +68,30 @@ all = [
     "messagepack",
     "multiplex",
     "router",
-    "serde-codec",
+    "codec",
     "server",
     "stdio",
     "tcp",
+    "udp",
     "local",
     "http",
 ]
 http = ["dep:http", "router", "http-body-util", "hyper", "hyper-util"]
-bincode = ["serde-codec", "tokio-serde/bincode"]
-cbor = ["serde-codec", "tokio-serde/cbor"]
+bincode = ["transport-async/bincode"]
+cbor = ["transport-async/cbor"]
 client = []
 default = []
-ipc = ["parity-tokio-ipc"]
-json = ["serde-codec", "tokio-serde/json"]
-local = []
-messagepack = ["serde-codec", "tokio-serde/messagepack"]
+ipc = ["transport-async/ipc"]
+json = ["transport-async/json"]
+local = ["transport-async/local"]
+messagepack = ["transport-async/messagepack"]
 multiplex = ["slab"]
 router = ["matchit"]
-serde-codec = ["serde", "tokio-serde"]
+codec = ["transport-async/codec"]
 server = []
-stdio = ["tokio/process"]
-tcp = ["tokio/net"]
+stdio = ["transport-async/stdio"]
+tcp = ["transport-async/tcp"]
+udp = ["transport-async/udp"]
 
 [[example]]
 name = "bytes_client"
@@ -164,7 +167,7 @@ required-features = ["local", "client", "server"]
 
 [[example]]
 name = "http"
-required-features = ["http", "tcp", "server", "serde-codec", "json"]
+required-features = ["http", "tcp", "server", "codec", "json"]
 
 [[bench]]
 harness = false

@@ -7,10 +7,11 @@ use http::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError, ServiceExt};
+use tower_rpc::transport::codec::{Codec, CodecStream};
 use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
-use tower_rpc::transport::CodecTransport;
+use tower_rpc::transport::{Bind, Connect};
 use tower_rpc::{
-    keyed_codec, make_service_fn, CallKeyedRoute, Client, Codec, RouteMatch, RouteService, Server,
+    keyed_codec, make_service_fn, CallKeyedRoute, Client, RouteMatch, RouteService, Server,
 };
 
 #[derive(Clone, Serialize, Deserialize, Hash, Eq, PartialEq)]
@@ -36,15 +37,16 @@ pub async fn main() -> Result<(), BoxError> {
         cancellation_token.clone(),
         background_service::Settings::default(),
     );
-    let transport = ipc::create_endpoint(
+    let transport = ipc::Endpoint::bind(ipc::EndpointParams::new(
         ServerId("test"),
-        SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+        SecurityAttributes::allow_everyone_create()?,
         OnConflict::Overwrite,
-    )?;
+    )?)
+    .await?;
 
     let codec = keyed_codec::<usize, HttpResponse<usize>, RequestMethod>(Codec::Bincode);
 
-    let transport = CodecTransport::new(transport, codec.clone());
+    let transport = CodecStream::new(transport, codec.clone());
 
     let server = Server::pipeline(
         transport,
@@ -75,7 +77,8 @@ pub async fn main() -> Result<(), BoxError> {
     let mut context = manager.get_context();
     context.add_service(server);
 
-    let client_transport = ipc::connect(ServerId("test")).await?;
+    let client_transport =
+        ipc::Connection::connect(ipc::ConnectionParams::new(ServerId("test"))?).await?;
     let mut client = Client::new(codec.client(client_transport)).create_pipeline();
 
     let mut i = 0;

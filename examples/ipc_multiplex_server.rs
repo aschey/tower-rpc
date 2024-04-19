@@ -6,9 +6,10 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 use tokio_util::sync::CancellationToken;
 use tower::{service_fn, BoxError};
+use tower_rpc::transport::codec::{Codec, CodecStream, SerdeCodec};
 use tower_rpc::transport::ipc::{self, IpcSecurity, OnConflict, SecurityAttributes, ServerId};
-use tower_rpc::transport::CodecTransport;
-use tower_rpc::{make_service_fn, Codec, Request, SerdeCodec, Server, Tagged};
+use tower_rpc::transport::Bind;
+use tower_rpc::{make_service_fn, Request, Server, Tagged};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -17,14 +18,15 @@ pub async fn main() -> Result<(), BoxError> {
         cancellation_token.clone(),
         background_service::Settings::default(),
     );
-    let transport = ipc::create_endpoint(
+    let transport = ipc::Endpoint::bind(ipc::EndpointParams::new(
         ServerId("test"),
-        SecurityAttributes::allow_everyone_create().expect("Failed to set security attributes"),
+        SecurityAttributes::allow_everyone_create()?,
         OnConflict::Overwrite,
-    )?;
+    )?)
+    .await?;
 
     let server = Server::multiplex(
-        CodecTransport::new(
+        CodecStream::new(
             transport,
             SerdeCodec::<Tagged<usize>, Tagged<usize>>::new(Codec::Bincode),
         ),

@@ -10,8 +10,9 @@ use tokio_util::sync::CancellationToken;
 use tower::{BoxError, ServiceBuilder};
 use tower_http::trace::TraceLayer;
 use tower_rpc::http::HttpAdapter;
-use tower_rpc::transport::tcp;
-use tower_rpc::{make_service_fn, Codec, CodecSerializer, Keyed, RouteMatch, RouteService};
+use tower_rpc::transport::codec::{Codec, CodecSerializer};
+use tower_rpc::transport::{tcp, Bind};
+use tower_rpc::{make_service_fn, Keyed, RouteMatch, RouteService};
 
 #[tokio::main]
 pub async fn main() -> Result<(), BoxError> {
@@ -22,7 +23,7 @@ pub async fn main() -> Result<(), BoxError> {
         background_service::Settings::default(),
     );
     let context = manager.get_context();
-    let transport = tcp::create_endpoint("127.0.0.1:8080".parse()?).await?;
+    let transport = tcp::Endpoint::bind("127.0.0.1:8080".parse()?).await?;
 
     let handler = Handler {
         count: Arc::new(AtomicUsize::new(0)),
