@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 
 use futures::{future, Future, Stream};
 use futures_cancel::FutureExt;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::sync::mpsc::error::SendError;
 use tokio::sync::mpsc::{self};
 use tokio::sync::oneshot;
@@ -183,10 +183,11 @@ impl<Res> Responder<Res> {
     }
 }
 
-#[pin_project]
-pub struct RequestStream<Req, Res> {
-    #[pin]
-    request_rx: mpsc::UnboundedReceiver<(Req, Responder<Res>)>,
+pin_project! {
+    pub struct RequestStream<Req, Res> {
+        #[pin]
+        request_rx: mpsc::UnboundedReceiver<(Req, Responder<Res>)>,
+    }
 }
 
 impl<Req, Res> Stream for RequestStream<Req, Res> {

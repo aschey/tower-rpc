@@ -14,8 +14,7 @@ bytes = "1"
 futures = "0.3"
 futures-cancel = { git = "https://github.com/aschey/futures-cancel", rev = "d2c20b78ff5c9e85aa892b51971cc1c1b6b22351" }
 matchit = { version = "0.8", optional = true }
-parity-tokio-ipc = { git = "https://github.com/aschey/parity-tokio-ipc", rev = "feb8297ed586862034faed03794d5d46519cd064", optional = true }
-pin-project = "1"
+pin-project-lite = "0.2"
 serde = { version = "1", features = ["derive"], optional = true }
 slab = { version = "0.4", optional = true }
 thiserror = "1"
@@ -23,7 +22,6 @@ tokio = { version = "1", features = ["sync"] }
 tokio-serde = { version = "0.9", optional = true }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-tower = "0.7.0-rc4"
-tokio-util = { version = "0.7", features = ["codec"] }
 tower = { version = "0.4", features = ["make", "util"] }
 tracing = "0.1"
 hyper = { version = "1.2", features = ["full"], optional = true }
@@ -36,6 +34,7 @@ transport-async = { git = "https://github.com/aschey/transport-async-rs", rev = 
 background-service = { git = "https://github.com/aschey/background-service-rs", rev = "15db3730c47a7bd6221c65cbb68b2a9373ff41f0", features = [
     "signal",
 ] }
+tokio-util = { version = "0.7" }
 tower-http = { version = "0.5", features = ["trace"] }
 http = "1.1"
 criterion = { version = "0.5.1", features = ["async_tokio", "html_reports"] }
